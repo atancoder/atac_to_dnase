@@ -3,7 +3,7 @@ from typing import List
 
 import click
 import pandas as pd
-
+from utils import BED3_COLS
 REGION_SIZE = 500  # Chosen b/c this is the default ABC peak size
 
 
@@ -13,21 +13,21 @@ def split_large_regions(large_regions: pd.DataFrame) -> pd.DataFrame:
         size = row["end"] - row["start"]
         num_regions = math.ceil(size / REGION_SIZE)
         for i in range(num_regions):
-            start = row["start"] + i * REGION_SIZE
+            start = row["start"] + (i * REGION_SIZE)
             end = start + REGION_SIZE
             if end > row["end"]:
                 # Special care to make sure the last region split doesn't go over, but
                 # is still REGION_SIZE
                 end = row["end"]
                 start = end - REGION_SIZE  # This should be in bounds
-            row = {"chr": row["chr"], "start": start, "end": end}
-            new_rows.append(row)
+            new_row = {"chrom": row["chrom"], "start": start, "end": end}
+            new_rows.append(new_row)
     return pd.DataFrame(new_rows)
 
 
 def bedtools_sort(bed_df: pd.DataFrame, chrom_order: List[str]):
-    bed_df["chr"] = pd.Categorical(bed_df["chr"], categories=chrom_order, ordered=True)
-    return bed_df.sort_values(["chr", "start", "end"])
+    bed_df["chrom"] = pd.Categorical(bed_df["chrom"], categories=chrom_order, ordered=True)
+    return bed_df.sort_values(BED3_COLS)
 
 
 def generate_fixed_regions_df(abc_peaks_df: pd.DataFrame) -> pd.DataFrame:
@@ -43,7 +43,7 @@ def generate_fixed_regions_df(abc_peaks_df: pd.DataFrame) -> pd.DataFrame:
         abc_peaks_df["end"] - abc_peaks_df["start"] == REGION_SIZE
     ].copy()
     fixed_regions = pd.concat([fixed_regions, split_regions], ignore_index=True)
-    chrom_order = abc_peaks_df["chr"].unique().tolist()
+    chrom_order = abc_peaks_df["chrom"].unique().tolist()
     fixed_regions = bedtools_sort(fixed_regions, chrom_order)
     return fixed_regions
 
@@ -52,7 +52,7 @@ def generate_fixed_regions_df(abc_peaks_df: pd.DataFrame) -> pd.DataFrame:
 @click.option("--abc_regions", type=str, required=True)
 @click.option("--output_file", type=str, default="fixed_regions.bed")
 def main(abc_regions: str, output_file: str):
-    abc_df = pd.read_csv(abc_regions, sep="\t", names=["chr", "start", "end"])
+    abc_df = pd.read_csv(abc_regions, sep="\t", names=BED3_COLS)
     fixed_regions = generate_fixed_regions_df(abc_df)
     fixed_regions.to_csv(output_file, sep="\t", index=False, header=False)
 
