@@ -2,20 +2,27 @@
 
 Model to convert ATAC signal to DNase signal
 
-Generate 500bp regions
+Convert DNase/ATAC signal to bigwig files
+
+Installation
+- clone repo
+- install conda environment
+- `pip install -e .`
+
+Generate training regions
+1. Splits ABC regions into 250bp regions 
+2. Attach DNA sequence to each region
 ```
-py workflow/scripts/create_fixed_size_regions.py --abc_regions data/ABC_peaks.bed --output_file data/500bp_peak_regions.bed
+py scripts/gen_train_data.py --abc_regions data/raw/ABC_peaks.bed --fasta reference/hg38.fa --output_file data/processed/training_regions.tsv
 ```
 
-Compute coverage (in RPM) for each of these regions
+Generate RPM coverage for peak region
 ```
-py workflow/scripts/RPM_coverage.py --peak_regions data/500bp_peak_regions.bed --profile data/ENCFF860XAE.sorted.se.bam --chrom_sizes data/GRCh38_EBV.chrom.sizes.tsv --output_file data/regions_dhs_coverage.bed
-py workflow/scripts/RPM_coverage.py --peak_regions data/500bp_peak_regions.bed --profile data/xu_K562_sorted.tagAlign.gz --chrom_sizes data/GRCh38_EBV.chrom.sizes.tsv --output_file data/regions_atac_coverage.bed
-
+py scripts/RPM_coverage.py --regions data/processed/training_regions.tsv --atac_bw data/raw/atac_ENCFF512VEZ.bigWig --atac_bam data/raw/ENCFF512VEZ.sorted.bam --dnase_bw data/raw/dnase_ENCFF860XAE.bigWig --dnase_bam data/raw/ENCFF860XAE.sorted.se.bam --output_file data/processed/region_coverages.tsv
 ```
 
-Compute Log2 Fold Change between DHS and ATAC signals
+Compute Log2 Fold Change between DNase and ATAC signals
 ```
-py workflow/scripts/plot_log_fold_change.py --dhs data/regions_dhs_coverage.bed --atac data/regions_atac_coverage.bed --crispr_file data/EPCrisprBenchmark_ensemble_data_GRCh38.tsv.gz  --output plots.pdf
+py scripts/plot_log_fold_change.py --rpm data/processed/region_coverages.tsv --crispr_file data/raw/EPCrisprBenchmark_ensemble_data_GRCh38.tsv.gz --output_file results/plots.pdf
+```
 
-```
