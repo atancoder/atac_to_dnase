@@ -1,9 +1,11 @@
+import math
+from typing import List
+
 import click
 import pandas as pd
 import pysam
+
 from atac_to_dnase.utils import BED3_COLS
-import math
-from typing import List
 
 REGION_SIZE = 250
 
@@ -26,7 +28,7 @@ def split_large_regions(large_regions: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(new_rows)
 
 
-def bedtools_sort(bed_df: pd.DataFrame, chrom_order: List[str]):
+def bedtools_sort(bed_df: pd.DataFrame, chrom_order: List[str]) -> pd.DataFrame:
     bed_df["chrom"] = pd.Categorical(
         bed_df["chrom"], categories=chrom_order, ordered=True
     )
@@ -57,14 +59,14 @@ def add_sequence(regions_df: pd.DataFrame, fasta_file: str) -> None:
             sequence = fasta.fetch(
                 reference=row["chrom"], start=row["start"], end=row["end"] + 1
             )
-            regions_df.loc[idx, "seq"] = sequence
+            regions_df.loc[idx, "seq"] = sequence  # type: ignore
 
 
 @click.command()
 @click.option("--abc_regions", type=str, required=True)
 @click.option("--fasta", "fasta_file", type=str, required=True)
 @click.option("--output_file", type=str, required=True)
-def main(abc_regions: str, fasta_file: str, output_file: str):
+def main(abc_regions: str, fasta_file: str, output_file: str) -> None:
     abc_df = pd.read_csv(abc_regions, sep="\t", names=BED3_COLS)
     fixed_regions = generate_fixed_regions_df(abc_df)
     add_sequence(fixed_regions, fasta_file)

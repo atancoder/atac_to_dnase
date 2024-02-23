@@ -5,3 +5,4 @@
 .vscode
 data/
 *.egg-info
+*mypy*

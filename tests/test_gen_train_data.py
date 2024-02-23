@@ -1,9 +1,9 @@
 import unittest
 
 import pandas as pd
-import pdb; pdb.set_trace()
-from scripts.gen_train_data import REGION_SIZE, generate_fixed_regions_df
+
 from atac_to_dnase.utils import BED3_COLS
+from scripts.gen_train_data import REGION_SIZE, generate_fixed_regions_df
 
 ABC_PEAKS_REGION = "input_data/ABC_peaks.bed"
 

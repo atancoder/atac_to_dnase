@@ -1,26 +1,28 @@
 import bioframe as bf
 import click
-import pandas as pd
-import numpy as np
-from atac_to_dnase.utils import BED3_COLS
+import matplotlib.figure.Figure as Figure
 import matplotlib.pyplot as plt
-from matplotlib.backends.backend_pdf import PdfPages
+import numpy as np
+import pandas as pd
 import seaborn as sns
+from matplotlib.backends.backend_pdf import PdfPages
+
+from atac_to_dnase.utils import BED3_COLS
 
 
-def get_crispr_positives(crispr_df):
+def get_crispr_positives(crispr_df: pd.DataFrame) -> pd.DataFrame:
     positives = crispr_df[crispr_df["Regulated"] == True]
     positives = positives[["chrom", "start", "end"]].drop_duplicates()
     return positives
 
 
-def get_crispr_negatives(crispr_df):
+def get_crispr_negatives(crispr_df: pd.DataFrame) -> pd.DataFrame:
     negatives = crispr_df[crispr_df["Regulated"] != True]
     negatives = negatives[["chrom", "start", "end"]].drop_duplicates()
     return negatives
 
 
-def get_figure(log_fold_change, title):
+def get_figure(log_fold_change: pd.Series, title: str) -> Figure:
     plt.clf()
     mean, median = np.mean(log_fold_change), np.median(log_fold_change)
     ax = sns.swarmplot(y=log_fold_change)
@@ -34,7 +36,7 @@ def get_figure(log_fold_change, title):
     return ax.get_figure()
 
 
-def plot_crispr_pos(crispr_df, rpm_df):
+def plot_crispr_pos(crispr_df: pd.DataFrame, rpm_df: pd.DataFrame) -> Figure:
     crispr_pos = get_crispr_positives(crispr_df)
     crispr_RPMs = bf.overlap(crispr_pos, rpm_df).fillna(0)
     crispr_dnase_rpm = crispr_RPMs.groupby(BED3_COLS).max()["DNASE_RPM_"]
@@ -44,7 +46,7 @@ def plot_crispr_pos(crispr_df, rpm_df):
     return get_figure(log_fold_change, "CRISPR Positives DNase to ATAC Signal")
 
 
-def plot_crispr_neg(crispr_df, rpm_df):
+def plot_crispr_neg(crispr_df: pd.DataFrame, rpm_df: pd.DataFrame) -> Figure:
     crispr_neg = get_crispr_negatives(crispr_df)
     crispr_RPMs = bf.overlap(crispr_neg, rpm_df).fillna(0)
     crispr_dnase_rpm = crispr_RPMs.groupby(BED3_COLS).max()["DNASE_RPM_"]
@@ -54,7 +56,7 @@ def plot_crispr_neg(crispr_df, rpm_df):
     return get_figure(log_fold_change, "CRISPR Negatives DNase to ATAC Signal")
 
 
-def plot_random_regions(rpm_df):
+def plot_random_regions(rpm_df: pd.DataFrame) -> Figure:
     log_fold_change = np.log(rpm_df["DNASE_RPM"] + 1) - np.log(rpm_df["ATAC_RPM"] + 1)
     log_fold_change = log_fold_change[log_fold_change != 0].sample(500)
     return get_figure(log_fold_change, "Random Regions DNase to ATAC Signal")
@@ -64,7 +66,7 @@ def plot_random_regions(rpm_df):
 @click.option("--rpm", type=str, required=True)
 @click.option("--crispr_file", type=str, required=True)
 @click.option("--output_file", type=str, required=True)
-def main(rpm: str, crispr_file: str, output_file: str):
+def main(rpm: str, crispr_file: str, output_file: str) -> None:
     rpm_df = pd.read_csv(rpm, sep="\t")
     if "DNASE_RPM" not in rpm_df.columns or "ATAC_RPM" not in rpm_df.columns:
         raise Exception("Must have both ATAC_RPM and DNASE_RPM columns for plotting")
