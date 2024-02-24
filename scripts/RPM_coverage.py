@@ -6,7 +6,11 @@ import click
 import pandas as pd
 import pyBigWig
 
-from atac_to_dnase.utils import BED3_COLS, NORMAL_CHROMOSOMES
+from atac_to_dnase.utils import (
+    BED3_COLS,
+    NORMAL_CHROMOSOMES,
+    estimate_bigwig_total_reads,
+)
 
 
 def count_bam_total(bam_file: str) -> int:
@@ -18,14 +22,6 @@ def count_bam_total(bam_file: str) -> int:
     )
     no_alt_chrom_df = df[df["chr"].isin(NORMAL_CHROMOSOMES)]
     return no_alt_chrom_df["mapped_reads"].sum()
-
-
-def estimate_bigwig_total_reads(bw: pyBigWig.pyBigWig) -> int:
-    total_mapped_reads = 0
-    for chrom, length in bw.chroms().items():
-        mean_coverage = bw.stats(chrom, 0, length, type="mean")[0]
-        total_mapped_reads += mean_coverage * length
-    return total_mapped_reads
 
 
 def add_RPM_coverage(

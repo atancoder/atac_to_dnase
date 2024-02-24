@@ -29,5 +29,6 @@ py scripts/plot_log_fold_change.py --rpm data/processed/region_RPM_coverages.tsv
 
 Train the model
 ```
-py main.py --training_regions data/processed/training_regions.tsv --atac_bw data/raw/atac_ENCFF512VEZ.bigWig --dnase_bw data/raw/dnase_ENCFF860XAE.bigWig
+py main.py save_data --training_regions data/processed/training_regions.tsv --atac_bw data/raw/atac_ENCFF512VEZ.bigWig --dnase_bw data/raw/dnase_ENCFF860XAE.bigWig
+py main.py train
 ```
