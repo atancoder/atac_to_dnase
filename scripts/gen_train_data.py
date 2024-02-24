@@ -3,16 +3,16 @@ from typing import List
 
 import click
 import pandas as pd
-import pysam
 
-from atac_to_dnase.utils import BED3_COLS
-
-REGION_SIZE = 250
+from atac_to_dnase.utils import BED3_COLS, NORMAL_CHROMOSOMES, REGION_SIZE
 
 
 def split_large_regions(large_regions: pd.DataFrame) -> pd.DataFrame:
     new_rows = []
     for _, row in large_regions.iterrows():
+        chrom = row["chrom"]
+        if chrom not in NORMAL_CHROMOSOMES:
+            continue
         size = row["end"] - row["start"]
         num_regions = math.ceil(size / REGION_SIZE)
         for i in range(num_regions):
@@ -23,7 +23,7 @@ def split_large_regions(large_regions: pd.DataFrame) -> pd.DataFrame:
                 # is still REGION_SIZE
                 end = row["end"]
                 start = end - REGION_SIZE  # This should be in bounds
-            new_row = {"chrom": row["chrom"], "start": start, "end": end}
+            new_row = {"chrom": chrom, "start": start, "end": end}
             new_rows.append(new_row)
     return pd.DataFrame(new_rows)
 
@@ -53,24 +53,12 @@ def generate_fixed_regions_df(abc_peaks_df: pd.DataFrame) -> pd.DataFrame:
     return fixed_regions
 
 
-def add_sequence(regions_df: pd.DataFrame, fasta_file: str) -> None:
-    with pysam.FastaFile(fasta_file) as fasta:
-        for idx, row in regions_df.iterrows():
-            sequence = fasta.fetch(
-                reference=row["chrom"], start=row["start"], end=row["end"] + 1
-            )
-            regions_df.loc[idx, "seq"] = sequence  # type: ignore
-
-
 @click.command()
 @click.option("--abc_regions", type=str, required=True)
-@click.option("--fasta", "fasta_file", type=str, required=True)
 @click.option("--output_file", type=str, required=True)
-def main(abc_regions: str, fasta_file: str, output_file: str) -> None:
+def main(abc_regions: str, output_file: str) -> None:
     abc_df = pd.read_csv(abc_regions, sep="\t", names=BED3_COLS)
     fixed_regions = generate_fixed_regions_df(abc_df)
-    add_sequence(fixed_regions, fasta_file)
-
     fixed_regions.to_csv(output_file, sep="\t", index=False)
 
 

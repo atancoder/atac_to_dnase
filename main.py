@@ -20,9 +20,10 @@ def cli():
 @click.option("--training_regions", required=True)
 @click.option("--atac_bw", required=True)
 @click.option("--dnase_bw", required=True)
+@click.option("--fasta", "fasta_file", type=str, required=True)
 @click.option("--data_folder", default="data/processed")
-def save_data(training_regions, atac_bw, dnase_bw, data_folder):
-    dataset = get_dataset(training_regions, atac_bw, dnase_bw)
+def save_data(training_regions, atac_bw, dnase_bw, fasta_file: str, data_folder):
+    dataset = get_dataset(training_regions, atac_bw, dnase_bw, fasta_file)
     X, Y = dataset.tensors
     torch.save(X, os.path.join(data_folder, FEATURE_FILENAME))
     torch.save(Y, os.path.join(data_folder, LABELS_FILENAME))
@@ -35,10 +36,14 @@ def train(data_folder):
     X = torch.load(os.path.join(data_folder, FEATURE_FILENAME))
     Y = torch.load(os.path.join(data_folder, LABELS_FILENAME))
     dataset = TensorDataset(X, Y)
-    data_loader = DataLoader(dataset, BATCH_SIZE)
-    import pdb
+    dataloader = DataLoader(dataset, BATCH_SIZE)
+    for batch_id, batch in enumerate(dataloader):
+        batch_features = batch[0]
+        batch_labels = batch[1]
+        import pdb
 
-    pdb.set_trace()
+        pdb.set_trace()
+        print()
 
 
 cli.add_command(save_data)
