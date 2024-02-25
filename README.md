@@ -31,5 +31,6 @@ Train the model
 ```
 py main.py save_data --training_regions data/processed/training_regions.tsv --atac_bw data/raw/atac_ENCFF512VEZ.bigWig --dnase_bw data/raw/dnase_ENCFF860XAE.bigWig --fasta data/reference/hg38.fa
 py main.py train
+py main.py predict --regions data/processed/training_regions.tsv --atac_bw data/raw/atac_ENCFF512VEZ.bigWig --fasta data/reference/hg38.fa --output data/results/predicted_dnase.bigWig
 ```
 

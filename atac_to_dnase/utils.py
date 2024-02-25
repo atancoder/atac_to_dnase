@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Dict
 
 import numpy as np
 import pyBigWig
@@ -27,3 +27,8 @@ def estimate_bigwig_total_reads(bw: pyBigWig.pyBigWig) -> int:
         mean_coverage = bw.stats(chrom, 0, length, type="mean")[0]
         total_mapped_reads += mean_coverage * length
     return total_mapped_reads
+
+def get_chrom_sizes(bw_file: str) -> Dict[str, int]:
+    with pyBigWig.open(bw_file) as bw:
+        return bw.chroms()
+    
