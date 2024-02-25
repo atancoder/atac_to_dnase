@@ -76,17 +76,19 @@ def train(data_folder, saved_model_file):
 @click.option("--fasta", "fasta_file", type=str, required=True)
 @click.option("--data_folder", default="data/processed")
 @click.option("--saved_model", "saved_model_file", default="model.pt")
-@click.option("--output", required=True)
-def predict(regions, atac_bw, fasta_file: str, data_folder, saved_model_file, output: str):
+@click.option("--output_bedgraph", default="data/processed/predictions.bedgraph")
+@click.option("--output_bw", required=True)
+def predict(regions, atac_bw, fasta_file: str, data_folder, saved_model_file, output_bedgraph, output_bw: str):
     regions_df = pd.read_csv(regions, sep="\t")
     chrom_sizes = get_chrom_sizes(atac_bw)
     X, regions_df = get_features(regions_df, atac_bw, fasta_file)
+    # X = torch.load(os.path.join(data_folder, FEATURE_FILENAME))[:128]
     mean, std = pd.read_csv(os.path.join(data_folder, f"{STATS_FILE}"), sep="\t").iloc[0][["mean", "std"]]
     X = normalize_features(X, mean, std)
     _, region_width, encoding_size = X.shape
     model = get_model(encoding_size, region_width, saved_model_file)
     chrom_sizes = get_chrom_sizes(atac_bw)
-    generate(regions_df, model, X, chrom_sizes, mean, std, output)
+    generate(regions_df, model, X, chrom_sizes, mean, std, output_bedgraph, output_bw)
 
 cli.add_command(save_data)
 cli.add_command(train)
