@@ -30,7 +30,7 @@ def cli():
     pass
 
 def get_model(encoding_size, region_width, saved_model_file: str) -> ATACTransformer:
-    model = ATACTransformer(encoding_size=encoding_size, embedding_size=encoding_size*4, region_width=region_width, num_heads=4, num_blocks=8)
+    model = ATACTransformer(encoding_size=encoding_size, embedding_size=encoding_size*2, region_width=region_width, num_heads=2, num_blocks=4)
     if os.path.exists(saved_model_file):
         print(f"Loading existing model: {saved_model_file}")
         model.load_state_dict(
@@ -65,9 +65,9 @@ def train(data_folder, saved_model_file):
     Y = torch.load(os.path.join(data_folder, LABELS_FILENAME))
     _, region_width, encoding_size = X.shape
     # Uncomment to overfit
-    # X = X[20000:30000]
-    # Y = Y[20000:30000]
-    
+    X = X[:128]
+    Y = Y[:128]
+
     dataloader = DataLoader(TensorDataset(X, Y), BATCH_SIZE, shuffle=True)
     model = get_model(encoding_size, region_width, saved_model_file)
     train_model(model, dataloader, LEARNING_RATE, DEVICE, saved_model_file)
@@ -94,7 +94,7 @@ def predict(regions, atac_bw, fasta_file: str, data_folder, saved_model_file, ou
     _, region_width, encoding_size = X.shape
     model = get_model(encoding_size, region_width, saved_model_file)
     chrom_sizes = get_chrom_sizes(atac_bw)
-    generate(regions_df, model, X, chrom_sizes, mean, std, output_bedgraph, output_bw)
+    generate(regions_df, model, X, chrom_sizes, mean, std, output_bedgraph, output_bw, DEVICE)
 
 cli.add_command(save_data)
 cli.add_command(train)

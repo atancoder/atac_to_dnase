@@ -73,15 +73,18 @@ def normalize_features_and_labels(X: torch.Tensor, Y: torch.Tensor) -> Tuple[tor
     atac_signal = X[:,:,4].view(-1)
     dnase_signal = Y.view(-1)
     combined_signal = torch.cat((atac_signal, dnase_signal), dim=0)
-    mean = combined_signal.mean()
-    std = combined_signal.std()
-    X[:,:,4] = (X[:,:,4] - mean) / std
-    Y = (Y - mean) / std
-    return X, Y, {"mean": mean.item(), "std": std.item()}
+    mean = combined_signal.mean().item()
+    std = combined_signal.std().item()
+    X = normalize_features(X, mean, std)
+    Y = normalize_labels(Y, mean, std)
+    return X, Y, {"mean": mean, "std": std}
 
 def normalize_features(X: torch.Tensor, mean: float, std: float) -> torch.Tensor:
     X[:,:,4] = (X[:,:,4] - mean) / std
     return X
+
+def normalize_labels(Y: torch.Tensor, mean: float, std: float) -> torch.Tensor:
+    return (Y - mean) / std
 
 def denormalize_labels(Y: torch.Tensor, mean: float, std: float) -> torch.Tensor:
     Y = (Y * std) + mean

@@ -22,8 +22,7 @@ def train_model(model: nn.Module, dataloader: DataLoader, learning_rate: float, 
 
             center_outputs = output[:, REGION_SLOP: -1*REGION_SLOP]
             center_labels = batch_labels[:, REGION_SLOP: -1*REGION_SLOP]
-
-            loss = criterion(center_outputs.sum(), center_labels.sum())
+            loss = criterion(center_outputs.sum(dim=1), center_labels.sum(dim=1))
 
             # Backpropagation
             loss.backward()

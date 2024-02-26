@@ -60,7 +60,7 @@ class BedgraphInterval:
         return pd.DataFrame(self._intervals)
     
 
-def _gen_bedgraph_intervals(regions_df: pd.DataFrame, model: nn.Module, X: torch.Tensor, mean: float, std: float) -> pd.DataFrame:
+def _gen_bedgraph_intervals(regions_df: pd.DataFrame, model: nn.Module, X: torch.Tensor, mean: float, std: float, device:str) -> pd.DataFrame:
     assert len(X) == len(regions_df), "Number of regions to predict must match ATAC signal regions"
     batch_size = 64
     dataloader = DataLoader(TensorDataset(X), batch_size=batch_size)
@@ -68,7 +68,7 @@ def _gen_bedgraph_intervals(regions_df: pd.DataFrame, model: nn.Module, X: torch
     bedgraph_interval = BedgraphInterval()
     with torch.no_grad():  # no tracking history
         for batch_id, batch in enumerate(dataloader):
-            Y_hat = model(batch[0])
+            Y_hat = model(batch[0].to(device))
             Y_hat = denormalize_labels(Y_hat, mean, std)
             Y_hat = get_centered_predictions(Y_hat)
             batch_regions_df = regions_df.iloc[batch_id*batch_size: (batch_id + 1) * batch_size].reset_index()
@@ -79,8 +79,8 @@ def _gen_bedgraph_intervals(regions_df: pd.DataFrame, model: nn.Module, X: torch
             
     return bedgraph_interval.to_df()
 
-def generate(regions_df: pd.DataFrame, model: nn.Module, X: torch.Tensor, chrom_sizes: Dict[str, int], mean: float, std: float, output_bedgraph: str, output_bw: str) -> None:
-    bedgraph_intervals = _gen_bedgraph_intervals(regions_df, model, X, mean, std)
+def generate(regions_df: pd.DataFrame, model: nn.Module, X: torch.Tensor, chrom_sizes: Dict[str, int], mean: float, std: float, output_bedgraph: str, output_bw: str, device: str) -> None:
+    bedgraph_intervals = _gen_bedgraph_intervals(regions_df, model, X, mean, std, device)
     bedgraph_intervals.to_csv(output_bedgraph, sep="\t", header=False, index=False)
     with pyBigWig.open(output_bw, "w") as bw:
         bw.addHeader(_order_chrom_sizes(chrom_sizes, regions_df))
