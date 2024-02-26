@@ -60,14 +60,16 @@ def save_data(training_regions, atac_bw, dnase_bw, fasta_file: str, data_folder)
 
 @click.command
 @click.option("--data_folder", default="data/processed")
+@click.option("--epochs", type=int, default="data/processed")
 @click.option("--saved_model", "saved_model_file", default="model.pt")
-def train(data_folder, saved_model_file):
+@click.option("—no-checkpoint", is_flag=True, default=False)
+def train(data_folder: str, epochs: int, saved_model_file: str, no_checkpoint: bool):
     X = torch.load(os.path.join(data_folder, FEATURE_FILENAME))
     Y = torch.load(os.path.join(data_folder, LABELS_FILENAME))
     _, region_width, encoding_size = X.shape
     dataloader = DataLoader(TensorDataset(X, Y), BATCH_SIZE, shuffle=True)
     model = get_model(encoding_size, region_width, saved_model_file)
-    train_model(model, dataloader, LEARNING_RATE, DEVICE, saved_model_file)
+    train_model(model, dataloader, LEARNING_RATE, DEVICE, saved_model_file, epochs=epochs, checkpoint_model=(not no_checkpoint))
 
 @click.command
 @click.option("--regions", required=True)

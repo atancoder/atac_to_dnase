@@ -1,3 +1,4 @@
+from tabnanny import check
 import time
 import torch
 import torch.nn as nn
@@ -7,14 +8,14 @@ from .utils import REGION_SLOP
 criterion = nn.MSELoss()
 LOG_INTERVAL = 100
 
-def train_model(model: nn.Module, dataloader: DataLoader, learning_rate: float, device: str, saved_model_file: str, epochs:int = 1000):
+def train_model(model: nn.Module, dataloader: DataLoader, learning_rate: float, device: str, saved_model_file: str, epochs: int, checkpoint_model: bool):
     start = time.time()
     size = len(dataloader.dataset)  # type: ignore
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
     model.train()
     total_loss = 0
     for epoch in range(epochs):
-        print(f"epoch {epoch} / {epochs}\n")
+        print(f"Epoch {epoch} / {epochs}\n")
         for batch_id, batch in enumerate(dataloader):
             batch_features = batch[0].to(device)
             batch_labels = batch[1].to(device)
@@ -37,6 +38,7 @@ def train_model(model: nn.Module, dataloader: DataLoader, learning_rate: float, 
                 print(f"Avg loss over {LOG_INTERVAL} batches: {loss:>10f}")
                 print(f"Processed [{current:>5d}/{size:>5d}] samples")
                 print(f"{int((time.time() - start) / 60)} minutes have elapsed")
-                print("Saving model")
-                torch.save(model.state_dict(), f"{saved_model_file}")
+                if checkpoint_model:
+                    print("Checkpointing model")
+                    torch.save(model.state_dict(), f"{saved_model_file}")
         
