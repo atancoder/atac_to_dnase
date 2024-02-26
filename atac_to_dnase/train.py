@@ -14,7 +14,7 @@ def train_model(model: nn.Module, dataloader: DataLoader, learning_rate: float, 
     model.train()
     total_loss = 0
     for epoch in range(epochs):
-        print(f"epoch {epoch} / {epochs}")
+        print(f"epoch {epoch} / {epochs}\n")
         for batch_id, batch in enumerate(dataloader):
             batch_features = batch[0].to(device)
             batch_labels = batch[1].to(device)
@@ -23,8 +23,7 @@ def train_model(model: nn.Module, dataloader: DataLoader, learning_rate: float, 
             center_outputs = output[:, REGION_SLOP: -1*REGION_SLOP]
             center_labels = batch_labels[:, REGION_SLOP: -1*REGION_SLOP]
 
-            mask = (center_outputs != 0) | (center_labels != 0)
-            loss = criterion(center_outputs[mask], center_labels[mask])
+            loss = criterion(center_outputs.sum(), center_labels.sum())
 
             # Backpropagation
             loss.backward()
@@ -36,7 +35,8 @@ def train_model(model: nn.Module, dataloader: DataLoader, learning_rate: float, 
                 loss = total_loss / LOG_INTERVAL 
                 total_loss = 0
                 current = batch_id + 1
-                print(f"loss: {loss:>10f}  Batch [{current:>5d}/{size:>5d}]")
+                print(f"Avg loss over {LOG_INTERVAL} batches: {loss:>10f}")
+                print(f"Processed [{current:>5d}/{size:>5d}] samples")
                 print(f"{int((time.time() - start) / 60)} minutes have elapsed")
                 print("Saving model")
                 torch.save(model.state_dict(), f"{saved_model_file}")

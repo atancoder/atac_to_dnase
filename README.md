@@ -10,8 +10,7 @@ Installation
 - `pip install -e .`
 
 Generate training regions
-1. Splits ABC regions into 250bp regions 
-2. Attach DNA sequence to each region
+Splits ABC regions into 250bp regions (You can modify 250bp by editing atac_to_dnase/utils.py)
 ```
 py scripts/gen_train_data.py --abc_regions data/raw/ABC_peaks.bed --output_file data/processed/training_regions.tsv
 ```
@@ -31,6 +30,10 @@ Train the model
 ```
 py main.py save_data --training_regions data/processed/training_regions.tsv --atac_bw data/raw/atac_ENCFF512VEZ.bigWig --dnase_bw data/raw/dnase_ENCFF860XAE.bigWig --fasta data/reference/hg38.fa
 py main.py train
+```
+
+Make predictions
+```
 py main.py predict --regions data/processed/training_regions.tsv --atac_bw data/raw/atac_ENCFF512VEZ.bigWig --fasta data/reference/hg38.fa --output_bw data/results/predicted_dnase.bigWig
 ```
 

@@ -13,36 +13,6 @@ from .utils import (
     one_hot_encode_dna,
 )
 
-
-def _gen_labels(
-    chrom: str,
-    start: int,
-    end: int,
-    dnase_bw: pyBigWig.pyBigWig,
-    dnase_total_reads: int,
-) -> np.ndarray:
-    return np.array(dnase_bw.values(chrom, start, end + 1)) / dnase_total_reads
-
-def _gen_features(
-    chrom: str,
-    start: int,
-    end: int,
-    fasta: pysam.FastaFile,
-    atac_bw: pyBigWig.pyBigWig,
-    atac_total_reads: int,
-) -> Optional[np.ndarray]:
-    seq = fasta.fetch(chrom, start, end + 1)
-    if not isinstance(seq, str):
-        return None
-
-    ohe = one_hot_encode_dna(seq)
-    atac_signal = np.array(atac_bw.values(chrom, start, end + 1)) / atac_total_reads
-    if sum(atac_signal) == 0:
-        return None
-
-    combined_features = np.hstack((ohe, atac_signal.reshape(-1, 1)))
-    return combined_features
-
 def get_features(regions_df: pd.DataFrame, atac_bw_file: str, fasta_file: str) -> Tuple[torch.Tensor, pd.DataFrame]:
     """
     Gets features but also returns a new regions_df, which filters out skipped regions
@@ -116,3 +86,33 @@ def normalize_features(X: torch.Tensor, mean: float, std: float) -> torch.Tensor
 def denormalize_labels(Y: torch.Tensor, mean: float, std: float) -> torch.Tensor:
     Y = (Y * std) + mean
     return Y
+
+
+def _gen_labels(
+    chrom: str,
+    start: int,
+    end: int,
+    dnase_bw: pyBigWig.pyBigWig,
+    dnase_total_reads: int,
+) -> np.ndarray:
+    return np.array(dnase_bw.values(chrom, start, end + 1)) / dnase_total_reads
+
+def _gen_features(
+    chrom: str,
+    start: int,
+    end: int,
+    fasta: pysam.FastaFile,
+    atac_bw: pyBigWig.pyBigWig,
+    atac_total_reads: int,
+) -> Optional[np.ndarray]:
+    seq = fasta.fetch(chrom, start, end + 1)
+    if not isinstance(seq, str):
+        return None
+
+    ohe = one_hot_encode_dna(seq)
+    atac_signal = np.array(atac_bw.values(chrom, start, end + 1)) / atac_total_reads
+    if sum(atac_signal) == 0:
+        return None
+
+    combined_features = np.hstack((ohe, atac_signal.reshape(-1, 1)))
+    return combined_features

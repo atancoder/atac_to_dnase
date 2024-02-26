@@ -12,7 +12,7 @@ from atac_to_dnase.utils import get_chrom_sizes
 torch.manual_seed(1337)
 
 BATCH_SIZE = 64
-LEARNING_RATE = 1e-3
+LEARNING_RATE = 1e-4
 FEATURE_FILENAME = "features.pt"
 LABELS_FILENAME = "labels.pt"
 STATS_FILE = "stats.tsv"
@@ -30,7 +30,7 @@ def cli():
     pass
 
 def get_model(encoding_size, region_width, saved_model_file: str) -> ATACTransformer:
-    model = ATACTransformer(encoding_size=encoding_size, region_width=region_width, num_heads=1, num_blocks=4)
+    model = ATACTransformer(encoding_size=encoding_size, embedding_size=encoding_size*4, region_width=region_width, num_heads=4, num_blocks=8)
     if os.path.exists(saved_model_file):
         print(f"Loading existing model: {saved_model_file}")
         model.load_state_dict(
@@ -63,10 +63,12 @@ def save_data(training_regions, atac_bw, dnase_bw, fasta_file: str, data_folder)
 def train(data_folder, saved_model_file):
     X = torch.load(os.path.join(data_folder, FEATURE_FILENAME))
     Y = torch.load(os.path.join(data_folder, LABELS_FILENAME))
-    print("Loaded data")
-    # Overfit
     _, region_width, encoding_size = X.shape
-    dataloader = DataLoader(TensorDataset(X, Y), BATCH_SIZE, shuffle=False)
+    # Uncomment to overfit
+    # X = X[20000:30000]
+    # Y = Y[20000:30000]
+    
+    dataloader = DataLoader(TensorDataset(X, Y), BATCH_SIZE, shuffle=True)
     model = get_model(encoding_size, region_width, saved_model_file)
     train_model(model, dataloader, LEARNING_RATE, DEVICE, saved_model_file)
 
@@ -81,8 +83,12 @@ def train(data_folder, saved_model_file):
 def predict(regions, atac_bw, fasta_file: str, data_folder, saved_model_file, output_bedgraph, output_bw: str):
     regions_df = pd.read_csv(regions, sep="\t")
     chrom_sizes = get_chrom_sizes(atac_bw)
-    X, regions_df = get_features(regions_df, atac_bw, fasta_file)
-    # X = torch.load(os.path.join(data_folder, FEATURE_FILENAME))[:128]
+
+    X = torch.load(os.path.join(data_folder, FEATURE_FILENAME))[:128]
+    regions_df = regions_df.iloc[:128]
+    # Uncomment below line for full prediction
+    # X, regions_df = get_features(regions_df, atac_bw, fasta_file)
+
     mean, std = pd.read_csv(os.path.join(data_folder, f"{STATS_FILE}"), sep="\t").iloc[0][["mean", "std"]]
     X = normalize_features(X, mean, std)
     _, region_width, encoding_size = X.shape

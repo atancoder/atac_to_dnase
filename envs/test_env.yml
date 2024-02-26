@@ -1,4 +1,4 @@
-name: atac_to_dnase
+name: atac_to_dnase_test
 channels:
     - pytorch
     - nvidia
@@ -7,8 +7,10 @@ dependencies:
     - bioframe
     - click
     - pandas
-    - python
+    - python <3.12
     - numpy
+    - samtools >=1.9
+    - snakemake >=7,<8
     - pyarrow
     - pybigwig
     - pysam
