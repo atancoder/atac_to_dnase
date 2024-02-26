@@ -7,17 +7,19 @@ Convert DNase/ATAC signal to bigwig files
 Installation
 - clone repo
 - install conda environment
-- `pip install -e .`
+- `pip install -e .`  # this is so files in scripts/ run correctly
 
 Generate training regions
 Splits ABC regions into 250bp regions (You can modify 250bp by editing atac_to_dnase/utils.py)
 ```
 py scripts/gen_train_data.py --abc_regions data/raw/ABC_peaks.bed --output_file data/processed/training_regions.tsv
+py main.py save_data --training_regions data/processed/training_regions.tsv --atac_bw data/raw/atac_ENCFF512VEZ.bigWig --dnase_bw data/raw/dnase_ENCFF860XAE.bigWig --fasta data/reference/hg38.fa
 ```
+
 
 Generate RPM coverage for peak region
 ```
-py scripts/RPM_coverage.py --regions data/processed/training_regions.tsv --atac_bw data/raw/atac_ENCFF512VEZ.bigWig --dnase_bw data/raw/dnase_ENCFF860XAE.bigWig --output_file data/processed/region_RPM_coverages.tsv
+py scripts/RPM_coverage.py --regions data/processed/training_regions.tsv --atac_bw data/raw/atac_ENCFF512VEZ.bigWig --dnase_bw data/raw/dnase_ENCFF860XAE.bigWig --output_atac data/processed/atac_RPM_coverages.bedgraph --output_dnase data/processed/dnase_RPM_coverages.bedgraph
 ```
 
 Compute Log2 Fold Change between DNase and ATAC signals
@@ -28,7 +30,6 @@ py scripts/plot_log_fold_change.py --rpm data/processed/region_RPM_coverages.tsv
 
 Train the model
 ```
-py main.py save_data --training_regions data/processed/training_regions.tsv --atac_bw data/raw/atac_ENCFF512VEZ.bigWig --dnase_bw data/raw/dnase_ENCFF860XAE.bigWig --fasta data/reference/hg38.fa
 py main.py train
 ```
 

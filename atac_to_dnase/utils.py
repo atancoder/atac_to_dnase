@@ -1,4 +1,4 @@
-from typing import List, Dict
+from typing import List, Dict, Union
 
 import numpy as np
 import pyBigWig
@@ -32,3 +32,5 @@ def get_chrom_sizes(bw_file: str) -> Dict[str, int]:
     with pyBigWig.open(bw_file) as bw:
         return bw.chroms()
     
+def compute_RPM(coverage: Union[float, np.ndarray], total_reads: int) -> Union[float, np.ndarray]:
+    return 1e6 * coverage / total_reads

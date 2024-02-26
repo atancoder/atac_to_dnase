@@ -1,4 +1,4 @@
-from typing import List, Optional, Tuple, Dict, Set
+from typing import List, Optional, Tuple, Dict, Set, cast
 
 import numpy as np
 import pandas as pd
@@ -11,6 +11,7 @@ from .utils import (
     REGION_SLOP,
     estimate_bigwig_total_reads,
     one_hot_encode_dna,
+    compute_RPM
 )
 
 def get_features(regions_df: pd.DataFrame, atac_bw_file: str, fasta_file: str) -> Tuple[torch.Tensor, pd.DataFrame]:
@@ -41,7 +42,7 @@ def get_features(regions_df: pd.DataFrame, atac_bw_file: str, fasta_file: str) -
                 X.append(features)
     print(f"Skipping {len(regions_skipped)} regions due to lack of coverage or sequence")
     X = torch.tensor(np.array(X), dtype=torch.float32)
-    filtered_regions = regions_df[~regions_df.index.isin(regions_skipped)].reset_index()
+    filtered_regions = regions_df[~regions_df.index.isin(regions_skipped)]
     return X, filtered_regions
 
 def get_labels(
@@ -68,25 +69,30 @@ def get_labels(
 
 def normalize_features_and_labels(X: torch.Tensor, Y: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, Dict[str, float]]:
     """
-    Returns the mean and stdev used to normalize
+    Returns the stats used to normalize
     """
     atac_signal = X[:,:,4].view(-1)
     dnase_signal = Y.view(-1)
     combined_signal = torch.cat((atac_signal, dnase_signal), dim=0)
     mean = combined_signal.mean().item()
     std = combined_signal.std().item()
-    X = normalize_features(X, mean, std)
-    Y = normalize_labels(Y, mean, std)
-    return X, Y, {"mean": mean, "std": std}
+    stats = {"std": std, "mean": mean}
+    X = normalize_features(X, stats)
+    Y = normalize_labels(Y, stats)
+    return X, Y, stats
 
-def normalize_features(X: torch.Tensor, mean: float, std: float) -> torch.Tensor:
+def normalize_features(X: torch.Tensor, stats: Dict[str, float]) -> torch.Tensor:
+    mean, std = stats["mean"], stats["std"]
+    X = X.clone()
     X[:,:,4] = (X[:,:,4] - mean) / std
     return X
 
-def normalize_labels(Y: torch.Tensor, mean: float, std: float) -> torch.Tensor:
+def normalize_labels(Y: torch.Tensor, stats: Dict[str, float]) -> torch.Tensor:
+    mean, std = stats["mean"], stats["std"]
     return (Y - mean) / std
 
-def denormalize_labels(Y: torch.Tensor, mean: float, std: float) -> torch.Tensor:
+def denormalize_labels(Y: torch.Tensor, stats: Dict[str, float]) -> torch.Tensor:
+    mean, std = stats["mean"], stats["std"]
     Y = (Y * std) + mean
     return Y
 
@@ -98,7 +104,7 @@ def _gen_labels(
     dnase_bw: pyBigWig.pyBigWig,
     dnase_total_reads: int,
 ) -> np.ndarray:
-    return np.array(dnase_bw.values(chrom, start, end + 1)) / dnase_total_reads
+    return cast(np.ndarray, compute_RPM(np.array(dnase_bw.values(chrom, start, end + 1)), dnase_total_reads))
 
 def _gen_features(
     chrom: str,
