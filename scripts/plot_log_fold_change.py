@@ -36,49 +36,51 @@ def get_figure(log_fold_change: pd.Series, title: str) -> Figure:
     return ax.get_figure()
 
 
-def plot_crispr_pos(crispr_df: pd.DataFrame, rpm_df: pd.DataFrame) -> Figure:
+def plot_crispr_pos(crispr_df: pd.DataFrame, atac_df: pd.DataFrame, dnase_df: pd.DataFrame) -> Figure:
     crispr_pos = get_crispr_positives(crispr_df)
-    crispr_RPMs = bf.overlap(crispr_pos, rpm_df).fillna(0)
-    crispr_dnase_rpm = crispr_RPMs.groupby(BED3_COLS).max()["DNASE_RPM_"]
-    crispr_atac_rpm = crispr_RPMs.groupby(BED3_COLS).max()["ATAC_RPM_"]
+    crispr_atac_RPMs = bf.overlap(crispr_pos, atac_df).fillna(0)
+    crispr_dnase_RPMs = bf.overlap(crispr_pos, dnase_df).fillna(0)
+    crispr_dnase_rpm = crispr_atac_RPMs.groupby(BED3_COLS).max()["RPM"]
+    crispr_atac_rpm = crispr_dnase_RPMs.groupby(BED3_COLS).max()["RPM"]
     log_fold_change = np.log2(crispr_dnase_rpm + 1) - np.log2(crispr_atac_rpm + 1)
 
     return get_figure(log_fold_change, "CRISPR Positives DNase to ATAC Signal")
 
 
-def plot_crispr_neg(crispr_df: pd.DataFrame, rpm_df: pd.DataFrame) -> Figure:
+def plot_crispr_neg(crispr_df: pd.DataFrame, atac_df: pd.DataFrame, dnase_df: pd.DataFrame) -> Figure:
     crispr_neg = get_crispr_negatives(crispr_df)
-    crispr_RPMs = bf.overlap(crispr_neg, rpm_df).fillna(0)
-    crispr_dnase_rpm = crispr_RPMs.groupby(BED3_COLS).max()["DNASE_RPM_"]
-    crispr_atac_rpm = crispr_RPMs.groupby(BED3_COLS).max()["ATAC_RPM_"]
+    crispr_atac_RPMs = bf.overlap(crispr_neg, atac_df).fillna(0)
+    crispr_dnase_RPMs = bf.overlap(crispr_neg, dnase_df).fillna(0)
+    crispr_dnase_rpm = crispr_atac_RPMs.groupby(BED3_COLS).max()["RPM"]
+    crispr_atac_rpm = crispr_dnase_RPMs.groupby(BED3_COLS).max()["RPM"]
     log_fold_change = np.log(crispr_dnase_rpm + 1) - np.log(crispr_atac_rpm + 1)
     log_fold_change = log_fold_change[log_fold_change != 0].sample(500)
     return get_figure(log_fold_change, "CRISPR Negatives DNase to ATAC Signal")
 
 
-def plot_random_regions(rpm_df: pd.DataFrame) -> Figure:
-    log_fold_change = np.log(rpm_df["DNASE_RPM"] + 1) - np.log(rpm_df["ATAC_RPM"] + 1)
+def plot_random_regions(atac_df: pd.DataFrame, dnase_df: pd.DataFrame) -> Figure:
+    log_fold_change = np.log(atac_df["RPM"] + 1) - np.log(dnase_df["RPM"] + 1)
     log_fold_change = log_fold_change[log_fold_change != 0].sample(500)
     return get_figure(log_fold_change, "Random Regions DNase to ATAC Signal")
 
 
 @click.command()
-@click.option("--rpm", type=str, required=True)
+@click.option("--atac_bedgraph", type=str, required=True)
+@click.option("--dnase_bedgraph", type=str, required=True)
 @click.option("--crispr_file", type=str, required=True)
 @click.option("--output_file", type=str, required=True)
-def main(rpm: str, crispr_file: str, output_file: str) -> None:
-    rpm_df = pd.read_csv(rpm, sep="\t")
-    if "DNASE_RPM" not in rpm_df.columns or "ATAC_RPM" not in rpm_df.columns:
-        raise Exception("Must have both ATAC_RPM and DNASE_RPM columns for plotting")
+def main(atac_bedgraph: str, dnase_bedgraph: str, crispr_file: str, output_file: str) -> None:
+    atac_df = pd.read_csv(atac_bedgraph, sep="\t", names=BED3_COLS + ["RPM"])
+    dnase_df = pd.read_csv(dnase_bedgraph, sep="\t", names=BED3_COLS + ["RPM"])
     crispr_df = pd.read_csv(crispr_file, sep="\t")
     crispr_df.rename(columns={"chromStart": "start", "chromEnd": "end"}, inplace=True)
 
     with PdfPages(output_file) as pdf_writer:
-        pdf_writer.savefig(plot_crispr_pos(crispr_df, rpm_df))
+        pdf_writer.savefig(plot_crispr_pos(crispr_df, atac_df, dnase_df))
         print("Saved positive plots")
-        pdf_writer.savefig(plot_crispr_neg(crispr_df, rpm_df))
+        pdf_writer.savefig(plot_crispr_neg(crispr_df, atac_df, dnase_df))
         print("Saved negative plots")
-        pdf_writer.savefig(plot_random_regions(rpm_df))
+        pdf_writer.savefig(plot_random_regions(atac_df, dnase_df))
         print("Saved random plots")
 
 

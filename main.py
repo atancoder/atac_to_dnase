@@ -16,7 +16,7 @@ torch.manual_seed(1337)
 
 BATCH_SIZE = 128
 LEARNING_RATE = 1e-4
-NUM_HEADS = 2
+NUM_HEADS = 1
 NUM_BLOCKS = 4
 FEATURE_FILENAME = "features.pt"
 LABELS_FILENAME = "labels.pt"
@@ -51,10 +51,11 @@ def get_model(encoding_size, region_width, saved_model_file: str) -> ATACTransfo
 @click.option("--dnase_bw", required=True)
 @click.option("--fasta", "fasta_file", type=str, required=True)
 @click.option("--data_folder", default="data/processed")
-def save_data(training_regions, atac_bw, dnase_bw, fasta_file: str, data_folder):
-    regions_df = pd.read_csv(training_regions, sep="\t")[:128]
+@click.option("--output_regions", required=True)
+def save_data(training_regions, atac_bw, dnase_bw, fasta_file: str, data_folder: str, output_regions:str):
+    regions_df = pd.read_csv(training_regions, sep="\t")
     X, regions_df = get_features(regions_df, atac_bw, fasta_file)
-    regions_df.to_csv(training_regions, sep="\t", index=False)
+    regions_df.to_csv(output_regions, sep="\t", index=False)
     Y = get_labels(regions_df, dnase_bw)
     X, Y, stats = normalize_features_and_labels(X, Y)
 
