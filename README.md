@@ -30,7 +30,7 @@ py scripts/plot_log_fold_change.py --rpm data/processed/region_RPM_coverages.tsv
 
 Train the model
 ```
-py main.py train --epochs 100 --no-checkpoint
+py main.py train --epochs 1000 --loss_plot train_2_head_8_blocks.pdf
 ```
 
 Make predictions

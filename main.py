@@ -9,10 +9,15 @@ from atac_to_dnase.train import train_model
 from atac_to_dnase.generate_bigwig import generate
 from atac_to_dnase.data import get_features, get_labels, normalize_features_and_labels, normalize_features
 from atac_to_dnase.utils import BED3_COLS, get_chrom_sizes
+from atac_to_dnase.plots import plot_losses
+from typing import Optional
+
 torch.manual_seed(1337)
 
-BATCH_SIZE = 64
+BATCH_SIZE = 128
 LEARNING_RATE = 1e-4
+NUM_HEADS = 2
+NUM_BLOCKS = 4
 FEATURE_FILENAME = "features.pt"
 LABELS_FILENAME = "labels.pt"
 STATS_FILE = "stats.tsv"
@@ -30,7 +35,7 @@ def cli():
     pass
 
 def get_model(encoding_size, region_width, saved_model_file: str) -> ATACTransformer:
-    model = ATACTransformer(encoding_size=encoding_size, embedding_size=encoding_size*2, region_width=region_width, num_heads=2, num_blocks=4)
+    model = ATACTransformer(encoding_size=encoding_size, embedding_size=encoding_size*6, region_width=region_width, num_heads=NUM_HEADS, num_blocks=NUM_BLOCKS)
     if os.path.exists(saved_model_file):
         print(f"Loading existing model: {saved_model_file}")
         model.load_state_dict(
@@ -62,14 +67,17 @@ def save_data(training_regions, atac_bw, dnase_bw, fasta_file: str, data_folder)
 @click.option("--data_folder", default="data/processed")
 @click.option("--epochs", type=int, default="data/processed")
 @click.option("--saved_model", "saved_model_file", default="model.pt")
-@click.option("—no-checkpoint", is_flag=True, default=False)
-def train(data_folder: str, epochs: int, saved_model_file: str, no_checkpoint: bool):
+@click.option("--loss_plot", default=None)
+@click.option("--no-checkpoint", is_flag=True, default=False)
+def train(data_folder: str, epochs: int, saved_model_file: str, loss_plot: Optional[str], no_checkpoint: bool):
     X = torch.load(os.path.join(data_folder, FEATURE_FILENAME))
     Y = torch.load(os.path.join(data_folder, LABELS_FILENAME))
     _, region_width, encoding_size = X.shape
     dataloader = DataLoader(TensorDataset(X, Y), BATCH_SIZE, shuffle=True)
     model = get_model(encoding_size, region_width, saved_model_file)
-    train_model(model, dataloader, LEARNING_RATE, DEVICE, saved_model_file, epochs=epochs, checkpoint_model=(not no_checkpoint))
+    losses = train_model(model, dataloader, LEARNING_RATE, DEVICE, saved_model_file, epochs=epochs, checkpoint_model=(not no_checkpoint))
+    if loss_plot:
+        plot_losses(losses, loss_plot)
 
 @click.command
 @click.option("--regions", required=True)
