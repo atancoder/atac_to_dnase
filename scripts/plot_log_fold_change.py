@@ -1,12 +1,12 @@
 import bioframe as bf
 import click
-import matplotlib.figure.Figure as Figure
+from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
 from matplotlib.backends.backend_pdf import PdfPages
-
+from typing import cast
 from atac_to_dnase.utils import BED3_COLS
 
 
@@ -33,15 +33,15 @@ def get_figure(log_fold_change: pd.Series, title: str) -> Figure:
         [], [], label=f"n={len(log_fold_change)}\nMean={mean:.2f}\nMedian={median:.2f}"
     )
     plt.legend()
-    return ax.get_figure()
+    return cast(Figure, ax.get_figure())
 
 
 def plot_crispr_pos(crispr_df: pd.DataFrame, atac_df: pd.DataFrame, dnase_df: pd.DataFrame) -> Figure:
     crispr_pos = get_crispr_positives(crispr_df)
     crispr_atac_RPMs = bf.overlap(crispr_pos, atac_df).fillna(0)
     crispr_dnase_RPMs = bf.overlap(crispr_pos, dnase_df).fillna(0)
-    crispr_dnase_rpm = crispr_atac_RPMs.groupby(BED3_COLS).max()["RPM"]
-    crispr_atac_rpm = crispr_dnase_RPMs.groupby(BED3_COLS).max()["RPM"]
+    crispr_dnase_rpm = crispr_atac_RPMs.groupby(BED3_COLS).max()["RPM_"]
+    crispr_atac_rpm = crispr_dnase_RPMs.groupby(BED3_COLS).max()["RPM_"]
     log_fold_change = np.log2(crispr_dnase_rpm + 1) - np.log2(crispr_atac_rpm + 1)
 
     return get_figure(log_fold_change, "CRISPR Positives DNase to ATAC Signal")
@@ -51,15 +51,15 @@ def plot_crispr_neg(crispr_df: pd.DataFrame, atac_df: pd.DataFrame, dnase_df: pd
     crispr_neg = get_crispr_negatives(crispr_df)
     crispr_atac_RPMs = bf.overlap(crispr_neg, atac_df).fillna(0)
     crispr_dnase_RPMs = bf.overlap(crispr_neg, dnase_df).fillna(0)
-    crispr_dnase_rpm = crispr_atac_RPMs.groupby(BED3_COLS).max()["RPM"]
-    crispr_atac_rpm = crispr_dnase_RPMs.groupby(BED3_COLS).max()["RPM"]
+    crispr_dnase_rpm = crispr_atac_RPMs.groupby(BED3_COLS).max()["RPM_"]
+    crispr_atac_rpm = crispr_dnase_RPMs.groupby(BED3_COLS).max()["RPM_"]
     log_fold_change = np.log(crispr_dnase_rpm + 1) - np.log(crispr_atac_rpm + 1)
     log_fold_change = log_fold_change[log_fold_change != 0].sample(500)
     return get_figure(log_fold_change, "CRISPR Negatives DNase to ATAC Signal")
 
 
 def plot_random_regions(atac_df: pd.DataFrame, dnase_df: pd.DataFrame) -> Figure:
-    log_fold_change = np.log(atac_df["RPM"] + 1) - np.log(dnase_df["RPM"] + 1)
+    log_fold_change = cast(pd.Series, np.log(atac_df["RPM"] + 1) - np.log(dnase_df["RPM"] + 1))
     log_fold_change = log_fold_change[log_fold_change != 0].sample(500)
     return get_figure(log_fold_change, "Random Regions DNase to ATAC Signal")
 

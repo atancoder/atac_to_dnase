@@ -16,7 +16,7 @@ class BedgraphInterval:
         if self._intervals:
             last_interval = self._intervals[-1]
             num_overlaps = last_interval["end"] - start + 1
-            if num_overlaps > 0:
+            if last_interval["chrom"] == chrom and num_overlaps > 0:
                 # Handle overlap
                 first_interval_overlap_vals = last_interval["bp_coverage"][-1*num_overlaps: ]
                 next_interval_overlap_vals = bp_coverage[:num_overlaps]
