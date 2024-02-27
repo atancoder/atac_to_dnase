@@ -18,6 +18,7 @@ BATCH_SIZE = 128
 LEARNING_RATE = 1e-4
 NUM_HEADS = 1
 NUM_BLOCKS = 4
+EMBEDDING_MULTIPLIER = 6
 FEATURE_FILENAME = "features.pt"
 LABELS_FILENAME = "labels.pt"
 STATS_FILE = "stats.tsv"
@@ -35,7 +36,7 @@ def cli():
     pass
 
 def get_model(encoding_size, region_width, saved_model_file: str) -> ATACTransformer:
-    model = ATACTransformer(encoding_size=encoding_size, embedding_size=encoding_size*6, region_width=region_width, num_heads=NUM_HEADS, num_blocks=NUM_BLOCKS)
+    model = ATACTransformer(encoding_size=encoding_size, embedding_size=encoding_size*EMBEDDING_MULTIPLIER, region_width=region_width, num_heads=NUM_HEADS, num_blocks=NUM_BLOCKS)
     if os.path.exists(saved_model_file):
         print(f"Loading existing model: {saved_model_file}")
         model.load_state_dict(

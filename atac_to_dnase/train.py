@@ -8,20 +8,24 @@ from typing import List
 
 criterion = nn.MSELoss()
 LOG_INTERVAL = 100
+EPOCH_STOP_THRESHOLD = 50
 
 def train_model(model: nn.Module, dataloader: DataLoader, learning_rate: float, device: str, saved_model_file: str, epochs: int, checkpoint_model: bool) -> List[float]:
-    start = time.time()
+    start_time = time.time()
     size = len(dataloader.dataset)  # type: ignore
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
     model.train()
-    total_loss = 0
+    
 
     best_loss = float('inf')
-    intervals_since_best_loss = 0
-    interval_losses = []
+    epochs_since_best_loss = 0
+    epoch_losses = []
     for epoch in range(epochs):
+        epoch_loss = 0
+        interval_loss = 0
         print(f"Epoch {epoch} / {epochs}\n")
-        for batch_id, batch in enumerate(dataloader):
+        for idx, batch in enumerate(dataloader):
+            batch_id = idx + 1
             batch_features = batch[0].to(device)
             batch_labels = batch[1].to(device)
             output = model(batch_features)
@@ -34,27 +38,28 @@ def train_model(model: nn.Module, dataloader: DataLoader, learning_rate: float, 
             loss.backward()
             optimizer.step()
             optimizer.zero_grad()
-
-            total_loss += loss.item()
+            interval_loss += loss.item()
             if batch_id % LOG_INTERVAL == 0:
-                loss = total_loss / LOG_INTERVAL 
-                interval_losses.append(loss)
-                total_loss = 0
-                current = batch_id + 1
-                print(f"Avg loss over {LOG_INTERVAL} batches: {loss:>10f}")
+                current = batch_id * batch_features.shape[0]
                 print(f"Processed [{current:>5d}/{size:>5d}] samples")
-                print(f"{int((time.time() - start) / 60)} minutes have elapsed")
+                epoch_loss += interval_loss
+                avg_interval_loss = interval_loss / LOG_INTERVAL
+                print(f"Avg loss over {LOG_INTERVAL} batches: {avg_interval_loss:>10f}")
+                interval_loss = 0
 
-                if loss < best_loss:
-                    best_loss = loss
-                    intervals_since_best_loss = 0
-                    if checkpoint_model:
-                        print("Checkpointing model")
-                        torch.save(model.state_dict(), f"{saved_model_file}")
-                else:
-                    intervals_since_best_loss += 1
-                    if intervals_since_best_loss == 50:
-                        print("Haven't beat the loss in 50 intervals. Quitting early")
-                        return interval_losses
-    return interval_losses
+        if epoch_loss < best_loss:
+            best_loss = epoch_loss
+            epochs_since_best_loss = 0
+            if checkpoint_model:
+                torch.save(model.state_dict(), f"{saved_model_file}")
+                print("Checkpointed model")
+        else:
+            epochs_since_best_loss += 1
+            if epochs_since_best_loss == EPOCH_STOP_THRESHOLD:
+                print(f"Haven't beat the loss in {EPOCH_STOP_THRESHOLD} epochs. Stopping early")
+                return epoch_losses
+            epoch_losses.append(epoch_loss)
+
+        print(f"Epoch complete. {int((time.time() - start_time) / 60)} minutes have elapsed")
+    return epoch_losses
         
