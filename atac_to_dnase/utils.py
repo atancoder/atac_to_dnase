@@ -6,8 +6,12 @@ import pyBigWig
 BED3_COLS = ["chrom", "start", "end"]
 NORMAL_CHROMOSOMES = set(["chr" + str(x) for x in range(1, 23)] + ["chrX"] + ["chrY"])
 REGION_SIZE = 250
-REGION_SLOP = 125
+REGION_SLOP = 25
 
+def dna_vocab_lookup(sequence: str) -> np.ndarray:
+    mapping = {"A": 1, "C": 2, "G": 3, "T": 4}
+    vocab_tokens = [mapping.get(nucleotide, 0) for nucleotide in sequence]
+    return np.array(vocab_tokens)
 
 def one_hot_encode_dna(sequence: str) -> np.ndarray:
     mapping = {

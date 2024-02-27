@@ -8,7 +8,7 @@ from atac_to_dnase.model import ATACTransformer
 from atac_to_dnase.train import train_model
 from atac_to_dnase.generate_bigwig import generate
 from atac_to_dnase.data import get_features, get_labels, normalize_features_and_labels, normalize_features
-from atac_to_dnase.utils import BED3_COLS, get_chrom_sizes
+from atac_to_dnase.utils import get_chrom_sizes
 from atac_to_dnase.plots import plot_losses
 from typing import Optional
 
@@ -16,9 +16,10 @@ torch.manual_seed(1337)
 
 BATCH_SIZE = 128
 LEARNING_RATE = 1e-4
-NUM_HEADS = 1
+NUM_HEADS = 2
 NUM_BLOCKS = 4
-EMBEDDING_MULTIPLIER = 6
+DNA_VOCAB_SIZE = 5 # AGCT + anything else
+CHANNELS = 31
 FEATURE_FILENAME = "features.pt"
 LABELS_FILENAME = "labels.pt"
 STATS_FILE = "stats.tsv"
@@ -35,9 +36,9 @@ print(f"Using {DEVICE} device")
 def cli():
     pass
 
-def get_model(encoding_size, region_width, saved_model_file: str) -> ATACTransformer:
-    model = ATACTransformer(encoding_size=encoding_size, embedding_size=encoding_size*EMBEDDING_MULTIPLIER, region_width=region_width, num_heads=NUM_HEADS, num_blocks=NUM_BLOCKS)
-    if os.path.exists(saved_model_file):
+def get_model(region_width, saved_model_file: Optional[str]) -> ATACTransformer:
+    model = ATACTransformer(vocab_size=DNA_VOCAB_SIZE, channels=CHANNELS, region_width=region_width, num_heads=NUM_HEADS, num_blocks=NUM_BLOCKS)
+    if saved_model_file and os.path.exists(saved_model_file):
         print(f"Loading existing model: {saved_model_file}")
         model.load_state_dict(
             torch.load(saved_model_file, map_location=torch.device(DEVICE))
@@ -65,19 +66,24 @@ def save_data(training_regions, atac_bw, dnase_bw, fasta_file: str, data_folder:
     torch.save(Y, os.path.join(data_folder, LABELS_FILENAME))
     print(f"Saved features, labels, and normalizing params to {data_folder}")
 
+def get_subset(X, Y):
+    subset_size = 10000
+    indices = torch.randperm(len(X))[:subset_size]
+    return X[indices], Y[indices]
+
 @click.command
 @click.option("--data_folder", default="data/processed")
-@click.option("--epochs", type=int, default="data/processed")
-@click.option("--saved_model", "saved_model_file", default="model.pt")
+@click.option("--epochs", type=int)
+@click.option("--saved_model", "saved_model_file")
 @click.option("--loss_plot", default=None)
-@click.option("--no-checkpoint", is_flag=True, default=False)
-def train(data_folder: str, epochs: int, saved_model_file: str, loss_plot: Optional[str], no_checkpoint: bool):
+def train(data_folder: str, epochs: int, saved_model_file: str, loss_plot: Optional[str]):
     X = torch.load(os.path.join(data_folder, FEATURE_FILENAME))
     Y = torch.load(os.path.join(data_folder, LABELS_FILENAME))
-    _, region_width, encoding_size = X.shape
+    X, Y = get_subset(X, Y)
     dataloader = DataLoader(TensorDataset(X, Y), BATCH_SIZE, shuffle=True)
-    model = get_model(encoding_size, region_width, saved_model_file)
-    losses = train_model(model, dataloader, LEARNING_RATE, DEVICE, saved_model_file, epochs=epochs, checkpoint_model=(not no_checkpoint))
+    region_width = X.shape[1]
+    model = get_model(region_width, saved_model_file)
+    losses = train_model(model, dataloader, LEARNING_RATE, DEVICE, saved_model_file, epochs=epochs)
     if loss_plot:
         plot_losses(losses, loss_plot)
 
@@ -96,8 +102,8 @@ def predict(regions, atac_bw, fasta_file: str, data_folder, saved_model_file, ou
     stats = pd.read_csv(os.path.join(data_folder, f"{STATS_FILE}"), sep="\t").iloc[0][["mean", "std"]].to_dict()
     X = normalize_features(X, stats)
 
-    _, region_width, encoding_size = X.shape
-    model = get_model(encoding_size, region_width, saved_model_file)
+    region_width = X.shape[1]
+    model = get_model(region_width, saved_model_file)
     chrom_sizes = get_chrom_sizes(atac_bw)
     generate(regions_df, model, X, chrom_sizes, stats, output_bedgraph, output_bw, DEVICE)
 

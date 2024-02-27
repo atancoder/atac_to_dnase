@@ -10,7 +10,7 @@ from .utils import (
     BED3_COLS,
     REGION_SLOP,
     estimate_bigwig_total_reads,
-    one_hot_encode_dna,
+    dna_vocab_lookup,
     compute_RPM
 )
 
@@ -71,7 +71,7 @@ def normalize_features_and_labels(X: torch.Tensor, Y: torch.Tensor) -> Tuple[tor
     """
     Returns the stats used to normalize
     """
-    atac_signal = X[:,:,4].view(-1)
+    atac_signal = X[:,:,-1].view(-1)
     dnase_signal = Y.view(-1)
     combined_signal = torch.cat((atac_signal, dnase_signal), dim=0)
     mean = combined_signal.mean().item()
@@ -84,7 +84,7 @@ def normalize_features_and_labels(X: torch.Tensor, Y: torch.Tensor) -> Tuple[tor
 def normalize_features(X: torch.Tensor, stats: Dict[str, float]) -> torch.Tensor:
     mean, std = stats["mean"], stats["std"]
     X = X.clone()
-    X[:,:,4] = (X[:,:,4] - mean) / std
+    X[:,:,-1] = (X[:,:,-1] - mean) / std
     return X
 
 def normalize_labels(Y: torch.Tensor, stats: Dict[str, float]) -> torch.Tensor:
@@ -118,10 +118,10 @@ def _gen_features(
     if not isinstance(seq, str):
         return None
 
-    ohe = one_hot_encode_dna(seq)
+    sequence_tokens = dna_vocab_lookup(seq)
     atac_signal = np.array(atac_bw.values(chrom, start, end + 1)) / atac_total_reads
     if sum(atac_signal) == 0:
         return None
 
-    combined_features = np.hstack((ohe, atac_signal.reshape(-1, 1)))
+    combined_features = np.stack((sequence_tokens, atac_signal), axis=1)
     return combined_features
