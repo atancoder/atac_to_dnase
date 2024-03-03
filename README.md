@@ -12,7 +12,7 @@ Installation
 Requirements
 - BigWig files (Convert from BAM file and normalized to sequencing depth)
 - fasta file 
-- ABC candidate regions bed file
+- ABC candidate regions bed file (remove chrM)
 
 ##Generate training regions
 Splits ABC regions into 500bp regions and extends each side by 125bp 
@@ -40,6 +40,6 @@ py main.py predict --regions data/processed/regions.tsv --saved_model models/mod
 Evaluation:
 Compute Log2 Fold Change between DNase and ATAC signals
 ```
-py scripts/plot_atac_vs_dnase.py --atac_bedgraph data/raw/atac.bedgraph --dnase_bedgraph data/raw/dnase.bedgraph --crispr_file data/raw/EPCrisprBenchmark_ensemble_data_GRCh38.tsv.gz --output_file results/plots.pdf
+py scripts/plot_atac_vs_dnase.py --abc_regions data/raw/ABC_peaks.bed --atac_bw data/raw/atac_ENCFF512VEZ.bigWig --dnase_bw data/raw/dnase_ENCFF860XAE.bigWig --crispr_file data/raw/EPCrisprBenchmark_ensemble_data_GRCh38.tsv.gz --output_file results/plots.pdf
 ```
 

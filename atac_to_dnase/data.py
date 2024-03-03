@@ -56,8 +56,8 @@ def get_region_features(
     for idx, row in regions_df.iterrows():
         idx = cast(int, idx)
         chrom, start, end = row[BED3_COLS]
-        atac_signal = _get_coverage(chrom, start, end, atac_bw)
-        dnase_signal = _get_coverage(chrom, start, end, dnase_bw)
+        atac_signal = get_coverage(chrom, start, end, atac_bw)
+        dnase_signal = get_coverage(chrom, start, end, dnase_bw)
         sequence = _get_sequence(chrom, start, end, fasta)
         if sum(atac_signal) == 0 or sum(dnase_signal) == 0 or not sequence:
             regions_skipped.add(idx)
@@ -108,7 +108,7 @@ def create_features(
         with pyBigWig.open(atac_bw_file) as atac_bw:
             for _, row in regions.iterrows():
                 chrom, start, end = row[BED3_COLS]
-                atac_signal = np.array(_get_coverage(chrom, start, end, atac_bw))
+                atac_signal = np.array(get_coverage(chrom, start, end, atac_bw))
                 seq = _get_sequence(chrom, start, end, fasta)
                 if not seq:
                     raise Exception(f"No sequence found for {chrom}:{start}-{end}")
@@ -143,7 +143,7 @@ def _check_cache(
     return X, Y
 
 
-def _get_coverage(
+def get_coverage(
     chrom: str, start: int, end: int, bw: pyBigWig.pyBigWig
 ) -> List[float]:
     try:

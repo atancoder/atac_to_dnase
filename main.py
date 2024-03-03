@@ -67,7 +67,7 @@ def get_model(region_width, saved_model_file: Optional[str]) -> ATACTransformer:
 @click.option("--fasta", "fasta_file", type=str, required=True)
 @click.option("--output_file", required=True)
 def gen_regions(
-    abc_regions,
+    abc_regions: str,
     region_size: int,
     region_slop: int,
     atac_bw,
@@ -75,8 +75,8 @@ def gen_regions(
     fasta_file: str,
     output_file: str,
 ):
-    abc_regions = pd.read_csv(abc_regions, sep="\t", names=BED3_COLS)
-    regions = split_into_fixed_region_sizes(abc_regions, region_size, region_slop)
+    abc_regions_df = pd.read_csv(abc_regions, sep="\t", names=BED3_COLS)
+    regions = split_into_fixed_region_sizes(abc_regions_df, region_size, region_slop)
     regions = get_region_features(regions, atac_bw, dnase_bw, fasta_file)
     regions.to_csv(output_file, sep="\t", index=False)
 
