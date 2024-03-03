@@ -3,14 +3,13 @@ import time
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
-from .utils import REGION_SLOP
 from typing import List, Optional
 
 criterion = nn.MSELoss()
 LOG_INTERVAL = 100
 EPOCH_STOP_THRESHOLD = 25
 
-def train_model(model: nn.Module, dataloader: DataLoader, learning_rate: float, device: str, saved_model_file: Optional[str], epochs: int) -> List[float]:
+def train_model(model: nn.Module, dataloader: DataLoader, learning_rate: float, device: str, saved_model_file: Optional[str], region_slop: int, epochs: int) -> List[float]:
     start_time = time.time()
     size = len(dataloader.dataset)  # type: ignore
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
@@ -30,8 +29,8 @@ def train_model(model: nn.Module, dataloader: DataLoader, learning_rate: float, 
             batch_labels = batch[1].to(device)
             output = model(batch_features)
 
-            center_outputs = output[:, REGION_SLOP: -1*REGION_SLOP]
-            center_labels = batch_labels[:, REGION_SLOP: -1*REGION_SLOP]
+            center_outputs = output[:, region_slop: -1*region_slop]
+            center_labels = batch_labels[:, region_slop: -1*region_slop]
             # loss = criterion(center_outputs.sum(dim=1), center_labels.sum(dim=1))
             loss = criterion(center_outputs, center_labels)
 
@@ -62,7 +61,6 @@ def train_model(model: nn.Module, dataloader: DataLoader, learning_rate: float, 
                 print(f"Haven't beat the loss in {EPOCH_STOP_THRESHOLD} epochs. Stopping early")
                 return epoch_losses
             epoch_losses.append(avg_batch_loss)
-
         
     return epoch_losses
         

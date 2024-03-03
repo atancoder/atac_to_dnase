@@ -9,33 +9,37 @@ Installation
 - install conda environment
 - `pip install -e .`  # this is so files in scripts/ run correctly
 
-Generate training regions
-Splits ABC regions into 250bp regions (You can modify 250bp by editing atac_to_dnase/utils.py)
-Control context extension by modifying REGION_SLOB in utils.py
+Requirements
+- BigWig files (Convert from BAM file and normalized to sequencing depth)
+- fasta file 
+- ABC candidate regions bed file
+
+##Generate training regions
+Splits ABC regions into 500bp regions and extends each side by 125bp 
+Adds ATAC signal, DNase signal, and DNA sequence to each region
+	- filter out regions that don't have both dnase and atac signal
+	- filter out regions in unmappable regions (no sequence)
+	
 ```
-py scripts/gen_train_data.py --abc_regions data/raw/ABC_peaks.bed --output_file data/processed/training_regions.tsv
-py main.py save_data --training_regions data/processed/training_regions.tsv --atac_bw data/raw/atac_ENCFF512VEZ.bigWig --dnase_bw data/raw/dnase_ENCFF860XAE.bigWig --fasta data/reference/hg38.fa --output_regions data/processed/filtered_training_regions_300bp.tsv
+py main.py gen_regions --abc_regions data/raw/ABC_peaks.bed --region_size 500 --region_slop 125 --atac_bw data/raw/atac_ENCFF512VEZ.bigWig --dnase_bw data/raw/dnase_ENCFF860XAE.bigWig --fasta data/reference/hg38.fa --output_file data/processed/regions.tsv
 ```
 
-
-Generate RPM coverage for peak region
+##Train the model
 ```
-py scripts/RPM_coverage.py --regions data/processed/filtered_training_regions_300bp.tsv --atac_bw data/raw/atac_ENCFF512VEZ.bigWig --dnase_bw data/raw/dnase_ENCFF860XAE.bigWig --output_atac data/processed/atac_RPM_coverages.bedgraph --output_dnase data/processed/dnase_RPM_coverages.bedgraph
-```
-
-Compute Log2 Fold Change between DNase and ATAC signals
-```
-py scripts/plot_log_fold_change.py --atac_bedgraph data/processed/atac_RPM_coverages.bedgraph --dnase_bedgraph data/processed/dnase_RPM_coverages.bedgraph --crispr_file data/raw/EPCrisprBenchmark_ensemble_data_GRCh38.tsv.gz --output_file results/plots.pdf
-```
-
-
-Train the model
-```
-py main.py train --epochs 100 --loss_plot loss_plot.pdf
+py main.py train --regions data/processed/regions.tsv --saved_model models/model.pt --epochs 100 --loss_plot loss_plot.pdf
 ```
 
 Make predictions
+Regions must utilize the same region_size and region_slop that the model was trained on
+TODO: Allow us to specify the regions we wish to predict in bed format; then the script verifies it matches what the model was trained on
+		and we can load the saved param we used for REGION slop based on the model
 ```
-py main.py predict --regions data/processed/filtered_training_regions_300bp.tsv --atac_bw data/raw/atac_ENCFF512VEZ.bigWig --fasta data/reference/hg38.fa --output_bw data/results/predicted_dnase.bigWig
+py main.py predict --regions data/processed/regions.tsv --saved_model models/model.pt --atac_bw data/raw/atac_ENCFF512VEZ.bigWig --fasta data/reference/hg38.fa --output_folder results/
+```
+
+Evaluation:
+Compute Log2 Fold Change between DNase and ATAC signals
+```
+py scripts/plot_atac_vs_dnase.py --atac_bedgraph data/raw/atac.bedgraph --dnase_bedgraph data/raw/dnase.bedgraph --crispr_file data/raw/EPCrisprBenchmark_ensemble_data_GRCh38.tsv.gz --output_file results/plots.pdf
 ```
 

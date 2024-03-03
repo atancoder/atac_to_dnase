@@ -3,8 +3,10 @@
 .DS_Store
 .snakemake
 .vscode
-data/
 *.egg-info
 *mypy*
 *.log
+data/
 plots/
+results/
+models/
