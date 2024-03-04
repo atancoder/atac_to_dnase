@@ -39,8 +39,8 @@ def _gen_bedgraph_intervals(regions_df: pd.DataFrame, model: nn.Module, X: torch
     assert len(X) == len(regions_df), "Number of regions to predict must match ATAC signal regions"
     batch_size = 64
     dataloader = DataLoader(TensorDataset(X), batch_size=batch_size)
-    model.eval()
     bedgraph_interval = BedgraphInterval()
+    model.eval()
     with torch.no_grad():
         for batch_id, batch in enumerate(dataloader):
             Y_hat = model(batch[0].to(device))

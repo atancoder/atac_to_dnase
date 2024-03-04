@@ -25,6 +25,10 @@ py main.py gen_regions --abc_regions data/raw/ABC_peaks.bed --region_size 500 --
 ```
 
 ##Train the model
+Find optimal learning rate
+```
+py main.py lr_grid_search --regions data/processed/regions.tsv
+```
 ```
 py main.py train --regions data/processed/regions.tsv --saved_model models/model.pt --epochs 100 --loss_plot loss_plot.pdf
 ```

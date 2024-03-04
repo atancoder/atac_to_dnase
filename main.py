@@ -5,6 +5,7 @@ import click
 import pandas as pd
 import torch
 from torch.utils.data import DataLoader, TensorDataset
+from typing import Tuple
 
 from atac_to_dnase.data import (
     get_region_features,
@@ -15,25 +16,28 @@ from atac_to_dnase.data import (
 from atac_to_dnase.generate_bigwig import generate
 from atac_to_dnase.model import ATACTransformer
 from atac_to_dnase.plots import plot_losses
-from atac_to_dnase.train import train_model
+from atac_to_dnase.train import train_model, evaluate_model
 from atac_to_dnase.utils import BED3_COLS, get_chrom_sizes, get_region_slop
 
 torch.manual_seed(1337)
 
-BATCH_SIZE = 64
-LEARNING_RATE = 1e-3
-NUM_HEADS = 2
-NUM_BLOCKS = 4
-CHANNELS = 10
-FEATURE_FILENAME = "features.pt"
-LABELS_FILENAME = "labels.pt"
-STATS_FILE = "stats.tsv"
 DEVICE = (
     "cuda"
     if torch.cuda.is_available()
     else "mps" if torch.backends.mps.is_available() else "cpu"  # type: ignore
 )
 print(f"Using {DEVICE} device")
+
+
+# Hyperparams
+BATCH_SIZE = 64
+LEARNING_RATE = 1e-3
+NUM_HEADS = 2
+NUM_BLOCKS = 4
+CHANNELS = 10
+
+# LR grid search
+LEARNING_RATES = [1e-5, 1e-4, 1e-3, 1e-2, 1e-1]
 
 
 @click.group()
@@ -81,8 +85,7 @@ def gen_regions(
     regions.to_csv(output_file, sep="\t", index=False)
 
 
-def get_subset(X, Y):
-    subset_size = 10000
+def get_subset(X, Y, subset_size: int = 10000) -> Tuple[torch.Tensor, torch.Tensor]:
     indices = torch.randperm(len(X))[:subset_size]
     return X[indices], Y[indices]
 
@@ -138,10 +141,47 @@ def predict(
         regions_df, model, X, chrom_sizes, output_folder, region_slop, DEVICE
     )
 
+@click.command(name="lr_grid_search")
+@click.option("--regions", required=True)
+@click.option("--epochs", type=int, default=5)
+@click.option("--plots_dir", default="plots")
+@click.option("--cache_dir", default="data/cache")
+def lr_grid_search(
+    regions: str,
+    epochs: int,
+    plots_dir: str,
+    cache_dir: str,
+):
+    region_slop = get_region_slop(regions)
+    X, Y = load_features_and_labels(regions, cache_dir)
+    X, Y = get_subset(X, Y, subset_size=10000)
+    train_size = int(10000 * .8)
+    train_X, train_Y = X[:train_size], Y[:train_size]
+    val_X, val_Y = X[train_size:], Y[train_size:]
+    train_dataloader = DataLoader(TensorDataset(train_X, train_Y), BATCH_SIZE, shuffle=False)
+    val_dataloader = DataLoader(TensorDataset(val_X, val_Y), BATCH_SIZE, shuffle=False)
+    region_width = X.shape[1]
+
+    best_lr = None
+    lowest_val_loss = float('inf')
+    for lr in LEARNING_RATES:
+        model = get_model(region_width, None)
+        print(f"Training model with LR: {lr}")
+        losses = train_model(
+            model, train_dataloader, LEARNING_RATE, DEVICE, saved_model_file=None, region_slop=region_slop, epochs=epochs
+        )
+        plot_losses(losses, output_file=os.path.join(plots_dir, f"lr_{lr}_plot.pdf"))
+        print("Evaluating model")
+        val_loss = evaluate_model(model, val_dataloader, DEVICE, region_slop)
+        if val_loss < lowest_val_loss:
+            best_lr = lr
+            lowest_val_loss = val_loss
+    print(f"Best Learning Rate: {best_lr} with Validation Loss: {lowest_val_loss}")
 
 cli.add_command(gen_regions)
 cli.add_command(train)
 cli.add_command(predict)
+cli.add_command(lr_grid_search)
 
 if __name__ == "__main__":
     cli()
