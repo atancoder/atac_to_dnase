@@ -173,6 +173,7 @@ def lr_grid_search(
         plot_losses(losses, output_file=os.path.join(plots_dir, f"lr_{lr}_plot.pdf"))
         print("Evaluating model")
         val_loss = evaluate_model(model, val_dataloader, DEVICE, region_slop)
+        print(f"{lr} has validation loss of {val_loss}")
         if val_loss < lowest_val_loss:
             best_lr = lr
             lowest_val_loss = val_loss
