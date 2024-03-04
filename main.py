@@ -11,7 +11,7 @@ from atac_to_dnase.data import (
     get_region_features,
     load_features_and_labels,
     split_into_fixed_region_sizes,
-    create_features
+    create_features,
 )
 from atac_to_dnase.generate_bigwig import generate
 from atac_to_dnase.model import ATACTransformer
@@ -31,13 +31,10 @@ print(f"Using {DEVICE} device")
 
 # Hyperparams
 BATCH_SIZE = 64
-LEARNING_RATE = 1e-3
-NUM_HEADS = 2
-NUM_BLOCKS = 4
-CHANNELS = 10
+LEARNING_RATE = 1e-4
 
 # LR grid search
-LEARNING_RATES = [1e-5, 1e-4, 1e-3, 1e-2, 1e-1]
+LEARNING_RATE_SEARCH = [1e-5, 1e-4, 1e-3, 1e-2, 1e-1]
 
 
 @click.group()
@@ -45,13 +42,10 @@ def cli():
     pass
 
 
-def get_model(region_width, saved_model_file: Optional[str]) -> ATACTransformer:
+def get_model(region_width: int, region_slop: int, saved_model_file: Optional[str]) -> ATACTransformer:
     model = ATACTransformer(
-        n_encoding=5,
-        channels=CHANNELS,
         region_width=region_width,
-        num_heads=NUM_HEADS,
-        num_blocks=NUM_BLOCKS,
+        region_slop=region_slop
     )
     if saved_model_file and os.path.exists(saved_model_file):
         print(f"Loading existing model: {saved_model_file}")
@@ -85,9 +79,9 @@ def gen_regions(
     regions.to_csv(output_file, sep="\t", index=False)
 
 
-def get_subset(X, Y, subset_size: int = 10000) -> Tuple[torch.Tensor, torch.Tensor]:
-    indices = torch.randperm(len(X))[:subset_size]
-    return X[indices], Y[indices]
+def get_subset(dna_X, atac_X, Y, subset_size: int = 10000) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    indices = torch.randperm(len(dna_X))[:subset_size]
+    return dna_X[indices], atac_X[indices], Y[indices]
 
 
 @click.command
@@ -104,12 +98,12 @@ def train(
     cache_dir: str,
 ):
     region_slop = get_region_slop(regions)
-    X, Y = load_features_and_labels(regions, cache_dir)
-    X, Y = get_subset(X, Y)
-    dataloader = DataLoader(TensorDataset(X, Y), BATCH_SIZE, shuffle=True)
-    region_width = X.shape[1]
+    dna_X, atac_X, Y = load_features_and_labels(regions, cache_dir)
+    dna_X, atac_X, Y = get_subset(dna_X, atac_X, Y, subset_size=10000)  # Overfit
+    dataloader = DataLoader(TensorDataset(dna_X, atac_X, Y), BATCH_SIZE, shuffle=True)
+    region_width = dna_X.shape[1]
     
-    model = get_model(region_width, saved_model_file)
+    model = get_model(region_width, region_slop, saved_model_file)
     losses = train_model(
         model, dataloader, LEARNING_RATE, DEVICE, saved_model_file, region_slop=region_slop, epochs=epochs
     )
@@ -127,18 +121,18 @@ def predict(
     regions,
     atac_bw,
     fasta_file: str,
-    saved_model_file,
+    saved_model_file: str,
     output_folder: str,
 ):
     regions_df = pd.read_csv(regions, sep="\t", nrows=10)  # 10 for testing purposes
     region_slop = get_region_slop(regions)
     chrom_sizes = get_chrom_sizes(atac_bw)
-    X = create_features(regions_df, atac_bw, fasta_file)
-    region_width = X.shape[1]
-    model = get_model(region_width, saved_model_file)
+    dna_X, atac_X = create_features(regions_df, atac_bw, fasta_file)
+    region_width = dna_X.shape[1]
+    model = get_model(region_width, region_slop, saved_model_file)
     chrom_sizes = get_chrom_sizes(atac_bw)
     generate(
-        regions_df, model, X, chrom_sizes, output_folder, region_slop, DEVICE
+        regions_df, model, dna_X, atac_X, chrom_sizes, output_folder, region_slop, DEVICE
     )
 
 @click.command(name="lr_grid_search")
@@ -153,19 +147,19 @@ def lr_grid_search(
     cache_dir: str,
 ):
     region_slop = get_region_slop(regions)
-    X, Y = load_features_and_labels(regions, cache_dir)
-    X, Y = get_subset(X, Y, subset_size=10000)
+    dna_X, atac_X, Y = load_features_and_labels(regions, cache_dir)
+    dna_X, atac_X, Y = get_subset(dna_X, atac_X, Y, subset_size=10000)
     train_size = int(10000 * .8)
-    train_X, train_Y = X[:train_size], Y[:train_size]
-    val_X, val_Y = X[train_size:], Y[train_size:]
-    train_dataloader = DataLoader(TensorDataset(train_X, train_Y), BATCH_SIZE, shuffle=False)
-    val_dataloader = DataLoader(TensorDataset(val_X, val_Y), BATCH_SIZE, shuffle=False)
-    region_width = X.shape[1]
+    train_dna_X, train_atac_X, train_Y = dna_X[:train_size], atac_X[:train_size], Y[:train_size]
+    val_dna_X, val_atac_X, val_Y = dna_X[train_size:], atac_X[train_size:], Y[train_size:]
+    train_dataloader = DataLoader(TensorDataset(train_dna_X, train_atac_X, train_Y), BATCH_SIZE, shuffle=False)
+    val_dataloader = DataLoader(TensorDataset(val_dna_X, val_atac_X, val_Y), BATCH_SIZE, shuffle=False)
 
+    region_width = dna_X.shape[1]
     best_lr = None
     lowest_val_loss = float('inf')
-    for lr in LEARNING_RATES:
-        model = get_model(region_width, None)
+    for lr in LEARNING_RATE_SEARCH:
+        model = get_model(region_width, region_slop, None)
         print(f"Training model with LR: {lr}")
         losses = train_model(
             model, train_dataloader, LEARNING_RATE, DEVICE, saved_model_file=None, region_slop=region_slop, epochs=epochs

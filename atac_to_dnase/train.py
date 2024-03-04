@@ -6,18 +6,18 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 from typing import List, Optional
 
-criterion = nn.MSELoss()
+criterion = nn.PoissonNLLLoss()
 LOG_INTERVAL = 100
 EPOCH_STOP_THRESHOLD = 25
 
-def _get_loss_for_batch(model: nn.Module, batch:List[torch.Tensor], region_slop: int, device: str) -> nn.MSELoss:
-    batch_features = batch[0].to(device)
-    batch_labels = batch[1].to(device)
-    output = model(batch_features)
+def _get_loss_for_batch(model: nn.Module, batch:List[torch.Tensor], region_slop: int, device: str) -> nn.PoissonNLLLoss:
+    dna_X = batch[0].to(device)
+    atac_X = batch[1].to(device)
+    labels = batch[2].to(device)
+    centered_output = model(dna_X, atac_X)  # Output has been cropped in model
 
-    center_outputs = output[:, region_slop: -1*region_slop]
-    center_labels = batch_labels[:, region_slop: -1*region_slop]
-    loss = criterion(center_outputs, center_labels)
+    centered_labels = labels[:, region_slop: -1*region_slop]
+    loss = criterion(centered_output, centered_labels.unsqueeze(-1))
     return loss
 
 class LossTracker:

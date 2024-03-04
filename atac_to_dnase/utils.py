@@ -6,6 +6,7 @@ import pandas as pd
 
 BED3_COLS = ["chrom", "start", "end"]
 NORMAL_CHROMOSOMES = set(["chr" + str(x) for x in range(1, 23)] + ["chrX"] + ["chrY"])
+ONE_HOT_ENCODING_SIZE = 4
 
 def get_region_slop(region_tsv: str) -> int:
     df = pd.read_csv(region_tsv, sep='\t', nrows=1)

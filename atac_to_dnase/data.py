@@ -1,6 +1,6 @@
 import math
 import os
-from typing import Dict, List, Optional, Set, Tuple, cast
+from typing import Dict, List, Optional, Tuple, cast
 
 import numpy as np
 import pandas as pd
@@ -16,9 +16,21 @@ from .utils import (
     one_hot_encode_dna,
 )
 
-CACHED_X_FILE = "features.pt"
+CACHED_DNA_FILE = "dna_features.pt"
+CACHED_ATAC_FILE = "atac_features.pt"
 CACHED_Y_FILE = "labels.pt"
 
+class ATACSignalDataset(torch.utils.data.Dataset):  #type: ignore
+    def __init__(self, X: List[Tuple[torch.Tensor]], Y: torch.Tensor):
+        self.X = X
+        self.Y = Y
+    
+    def __len__(self):
+        return len(self.X)
+
+    def __getitem__(self, idx):
+        return self.X[idx], self.Y[idx]
+    
 
 def split_into_fixed_region_sizes(
     abc_peaks_df: pd.DataFrame, region_size: int, region_slop: int
@@ -78,30 +90,33 @@ def get_region_features(
 
 def load_features_and_labels(
     regions_file: str, cache_dir: str
-) -> Tuple[torch.Tensor, torch.Tensor]:
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     result = _check_cache(regions_file, cache_dir)
     if result:
-        return result[0], result[1]
-    print("X,Y not found in cache. Generating")
+        return result
+    print("dna_X, atac_X, Y not found in cache. Generating")
     regions = pd.read_csv(regions_file, sep="\t")
-    X = []
+    dna_X = []
+    atac_X = []
     Y = []
     for _, row in regions.iterrows():
         seq = one_hot_encode_dna(row["SEQ"])
         atac_signal = np.array(ast.literal_eval(row["ATAC"]))
         dnase_signal = np.array(ast.literal_eval(row["DNASE"]))
-        feature = np.hstack((seq, atac_signal.reshape(-1, 1)))
-        X.append(feature)
+        dna_X.append(seq)
+        atac_X.append(atac_signal)
         Y.append(dnase_signal)
-    X = torch.tensor(np.array(X), dtype=torch.float32)
+    dna_X = torch.tensor(np.array(dna_X), dtype=torch.float32)
+    atac_X = torch.tensor(np.array(atac_X), dtype=torch.float32)
     Y = torch.tensor(np.array(Y), dtype=torch.float32)
-    _save_cache(X, Y, cache_dir)
-    return X, Y
+    _save_cache(dna_X, atac_X, Y, cache_dir)
+    return dna_X, atac_X, Y
 
 def create_features(
     regions: pd.DataFrame, atac_bw_file: str, fasta_file: str
-) -> torch.Tensor:
-    X = []
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    dna_X = []
+    atac_X = []
     fasta = pysam.FastaFile(fasta_file)
     atac_bw = pyBigWig.open(atac_bw_file)
     with pysam.FastaFile(fasta_file) as fasta:
@@ -113,34 +128,40 @@ def create_features(
                 if not seq:
                     raise Exception(f"No sequence found for {chrom}:{start}-{end}")
                 seq = one_hot_encode_dna(seq)
-                feature = np.hstack((seq, atac_signal.reshape(-1, 1)))
-                X.append(feature)
-    return torch.tensor(np.array(X), dtype=torch.float32)
+                dna_X.append(seq)
+                atac_X.append(atac_signal)
+    dna_X = torch.tensor(np.array(dna_X), dtype=torch.float32)
+    atac_X = torch.tensor(np.array(atac_X), dtype=torch.float32)
+    return dna_X, atac_X
 
-def _save_cache(X: torch.Tensor, Y: torch.Tensor, cache_dir: str) -> None:
-    cache_x_file = os.path.join(cache_dir, CACHED_X_FILE)
+def _save_cache(dna_X: torch.Tensor, atac_X: torch.Tensor, Y: torch.Tensor, cache_dir: str) -> None:
+    cache_dna_file = os.path.join(cache_dir, CACHED_DNA_FILE)
+    cache_atac_file = os.path.join(cache_dir, CACHED_ATAC_FILE)
     cache_y_file = os.path.join(cache_dir, CACHED_Y_FILE)
-    torch.save(X, cache_x_file)
+    torch.save(dna_X, cache_dna_file)
+    torch.save(atac_X, cache_atac_file)
     torch.save(Y, cache_y_file)
-    print("Saved X,Y to cache")
+    print("Saved dna_X, atac_X, Y to cache")
 
 
 def _check_cache(
     regions_file: str, cache_dir: str
-) -> Optional[Tuple[torch.Tensor, torch.Tensor]]:
-    cache_x_file = os.path.join(cache_dir, CACHED_X_FILE)
+) -> Optional[Tuple[torch.Tensor, torch.Tensor, torch.Tensor]]:
+    cache_dna_file = os.path.join(cache_dir, CACHED_DNA_FILE)
+    cache_atac_file = os.path.join(cache_dir, CACHED_ATAC_FILE)
     cache_y_file = os.path.join(cache_dir, CACHED_Y_FILE)
-    if not os.path.exists(cache_x_file) or not os.path.exists(cache_y_file):
+    if not os.path.exists(cache_dna_file) or not os.path.exists(cache_atac_file) or not os.path.exists(cache_y_file):
         return None
     
-    cache_mtime = min(os.path.getmtime(cache_x_file), os.path.getmtime(cache_y_file))
+    cache_mtime = min(os.path.getmtime(cache_dna_file), os.path.getmtime(cache_atac_file), os.path.getmtime(cache_y_file))
     regions_mtime = os.path.getmtime(regions_file)
     if regions_mtime > cache_mtime:
         return None
-    print("Loading X,Y from cache")
-    X = torch.load(cache_x_file)
+    print("Loading dna_X, atac_X, Y from cache")
+    dna_X = torch.load(cache_dna_file)
+    atac_X = torch.load(cache_atac_file)
     Y = torch.load(cache_y_file)
-    return X, Y
+    return dna_X, atac_X, Y
 
 
 def get_coverage(
