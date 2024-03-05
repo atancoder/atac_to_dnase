@@ -6,16 +6,15 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 from typing import List, Optional
 
-criterion = nn.PoissonNLLLoss()
+criterion = nn.MSELoss(reduction='sum')
 LOG_INTERVAL = 100
 EPOCH_STOP_THRESHOLD = 25
 
-def _get_loss_for_batch(model: nn.Module, batch:List[torch.Tensor], region_slop: int, device: str) -> nn.PoissonNLLLoss:
+def _get_loss_for_batch(model: nn.Module, batch:List[torch.Tensor], region_slop: int, device: str) -> nn.MSELoss:
     dna_X = batch[0].to(device)
     atac_X = batch[1].to(device)
     labels = batch[2].to(device)
     centered_output = model(dna_X, atac_X)  # Output has been cropped in model
-
     centered_labels = labels[:, region_slop: -1*region_slop]
     loss = criterion(centered_output, centered_labels.unsqueeze(-1))
     return loss
@@ -42,10 +41,28 @@ class LossTracker:
     def should_stop_early(self) -> bool:
         return self.epochs_since_best_loss >= EPOCH_STOP_THRESHOLD
 
-def train_model(model: nn.Module, dataloader: DataLoader, learning_rate: float, device: str, saved_model_file: Optional[str], region_slop: int, epochs: int) -> List[float]:
+class WarmupLR(torch.optim.lr_scheduler._LRScheduler):
+    def __init__(self, optimizer, warmup_steps, end_lr, last_epoch=-1):
+        """
+        We say epochs, but it's really an arbitrary time we decide to change LR
+        """
+        self.warmup_steps = warmup_steps
+        self.end_lr = end_lr
+        self.start_lr = end_lr / 1e3
+        self.step_size = (end_lr - self.start_lr) / warmup_steps
+        super(WarmupLR, self).__init__(optimizer, last_epoch)
+    
+    def get_lr(self):
+        if self.last_epoch < self.warmup_steps:
+            return [self.start_lr + self.step_size * self.last_epoch for _ in self.base_lrs]
+        return [self.end_lr for _ in self.base_lrs]
+
+def train_model(model: nn.Module, dataloader: DataLoader, learning_rate: float, device: str, saved_model_file: Optional[str], region_slop: int, epochs: int, warm_up: bool) -> List[float]:
     start_time = time.time()
     size = len(dataloader.dataset)  # type: ignore
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
+    if warm_up:
+        scheduler = WarmupLR(optimizer, warmup_steps=100, end_lr=learning_rate)
     model.train()
     loss_tracker = LossTracker(model, saved_model_file)
     for epoch in range(epochs):
@@ -65,6 +82,8 @@ def train_model(model: nn.Module, dataloader: DataLoader, learning_rate: float, 
             epoch_loss += loss.item()
             interval_loss += loss.item()
             if batch_id % LOG_INTERVAL == 0:
+                if warm_up:
+                    scheduler.step()
                 batch_size = batch[0].shape[0]
                 current = batch_id * batch_size
                 print(f"Processed [{current:>5d}/{size:>5d}] samples")

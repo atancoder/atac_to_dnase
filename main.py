@@ -31,10 +31,10 @@ print(f"Using {DEVICE} device")
 
 # Hyperparams
 BATCH_SIZE = 64
-LEARNING_RATE = 1e-4
+LEARNING_RATE = 1e-5
 
 # LR grid search
-LEARNING_RATE_SEARCH = [1e-5, 1e-4, 1e-3, 1e-2, 1e-1]
+LEARNING_RATE_SEARCH = [1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2]
 
 
 @click.group()
@@ -105,7 +105,7 @@ def train(
     
     model = get_model(region_width, region_slop, saved_model_file)
     losses = train_model(
-        model, dataloader, LEARNING_RATE, DEVICE, saved_model_file, region_slop=region_slop, epochs=epochs
+        model, dataloader, LEARNING_RATE, DEVICE, saved_model_file, region_slop=region_slop, epochs=epochs, warm_up=True
     )
     if loss_plot:
         plot_losses(losses, loss_plot)
@@ -162,7 +162,7 @@ def lr_grid_search(
         model = get_model(region_width, region_slop, None)
         print(f"Training model with LR: {lr}")
         losses = train_model(
-            model, train_dataloader, LEARNING_RATE, DEVICE, saved_model_file=None, region_slop=region_slop, epochs=epochs
+            model, train_dataloader, LEARNING_RATE, DEVICE, saved_model_file=None, region_slop=region_slop, epochs=epochs, warm_up=False
         )
         plot_losses(losses, output_file=os.path.join(plots_dir, f"lr_{lr}_plot.pdf"))
         print("Evaluating model")

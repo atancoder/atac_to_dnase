@@ -3,9 +3,10 @@ import torch
 from .utils import ONE_HOT_ENCODING_SIZE
 
 NUM_HEADS = 8
-NUM_BLOCKS = 4
-CONV_FILTER_SIZE = 21
-CHANNELS = 128
+NUM_BLOCKS = 8
+CONV_FILTER_SIZE = 21  # Needs to be odd
+CHANNELS = 64
+
 class Residual(nn.Module):
     def __init__(self, module: nn.Module) -> None:
         super().__init__()
@@ -43,6 +44,7 @@ class CenterRegion(nn.Module):
 
 class ATACTransformer(nn.Module):
     def __init__(self, region_width: int, region_slop: int):
+        assert CONV_FILTER_SIZE % 2 == 1
         super().__init__()
         encoding_size = ONE_HOT_ENCODING_SIZE + 1  # ATAC signal concatenated 
         embedding_conv_layer = nn.Sequential(
@@ -64,7 +66,7 @@ class ATACTransformer(nn.Module):
         self.crop = CenterRegion(region_width, region_slop)
         self.decoder = nn.Sequential(
             nn.Linear(CHANNELS, 1),
-            nn.ReLU()
+            nn.Softplus()  # Using ReLu leads to dying neurons early on
         )
         self.init_weights()
 
