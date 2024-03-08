@@ -33,8 +33,9 @@ def one_hot_encode_dna(sequence: str) -> np.ndarray:
 def estimate_bigwig_total_reads(bw: pyBigWig.pyBigWig) -> int:
     total_mapped_reads = 0
     for chrom, length in bw.chroms().items():
-        mean_coverage = bw.stats(chrom, 0, length, type="mean")[0]
-        total_mapped_reads += mean_coverage * length
+        sum_coverage = bw.stats(chrom, 0, length, type="sum", exact=True)[0]
+        if chrom in NORMAL_CHROMOSOMES:
+            total_mapped_reads += sum_coverage
     return total_mapped_reads
 
 
