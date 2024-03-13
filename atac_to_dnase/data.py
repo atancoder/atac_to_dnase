@@ -59,7 +59,6 @@ def split_into_fixed_region_sizes(
 def load_features_and_labels(
     regions_file: str, atac_bw_file: str, dnase_bw_file: str, fasta_file: str, cache_dir: str, chromosomes: Set[str]
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    print("dna_X, atac_X, Y not found in cache. Generating")
     regions = pd.read_csv(regions_file, sep="\t")
     dna_X = []
     atac_X = []
@@ -69,6 +68,7 @@ def load_features_and_labels(
         if result:
             chrom_dna_X, chrom_atac_X, chrom_Y = [r.numpy() for r in result]
         else:
+            print("dna_X, atac_X, Y not found in cache. Generating")
             chrom_dna_X, chrom_atac_X, chrom_Y = _get_chrom_feature_and_labels(regions, chrom, atac_bw_file, dnase_bw_file, fasta_file)
             _save_cache(chrom, chrom_dna_X, chrom_atac_X, chrom_Y, cache_dir)
         dna_X.append(chrom_dna_X)
