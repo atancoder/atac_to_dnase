@@ -17,7 +17,7 @@ from atac_to_dnase.generate_bigwig import generate
 from atac_to_dnase.model import ATACTransformer
 from atac_to_dnase.plots import plot_losses
 from atac_to_dnase.train import train_model, evaluate_model
-from atac_to_dnase.utils import BED3_COLS, get_chrom_sizes, get_region_slop
+from atac_to_dnase.utils import BED3_COLS, NORMAL_CHROMOSOMES, get_chrom_sizes, get_region_slop
 
 torch.manual_seed(1337)
 
@@ -86,20 +86,26 @@ def get_subset(dna_X, atac_X, Y, subset_size: int = 10000) -> Tuple[torch.Tensor
 
 @click.command
 @click.option("--regions", required=True)
+@click.option("--chrom", type=str)
 @click.option("--epochs", type=int, default=100)
 @click.option("--saved_model", "saved_model_file")
 @click.option("--loss_plot", default=None)
 @click.option("--cache_dir", default="data/cache")
 def train(
     regions: str,
+    chrom: Optional[str],
     epochs: int,
     saved_model_file: str,
     loss_plot: Optional[str],
     cache_dir: str,
 ):
+    if chrom:
+        chromosomes = {chrom}
+    else:
+        chromosomes = NORMAL_CHROMOSOMES
+
     region_slop = get_region_slop(regions)
-    dna_X, atac_X, Y = load_features_and_labels(regions, cache_dir)
-    dna_X, atac_X, Y = get_subset(dna_X, atac_X, Y, subset_size=10000)  # Overfit
+    dna_X, atac_X, Y = load_features_and_labels(regions, cache_dir, chromosomes)
     dataloader = DataLoader(TensorDataset(dna_X, atac_X, Y), BATCH_SIZE, shuffle=True)
     region_width = dna_X.shape[1]
     
@@ -137,18 +143,23 @@ def predict(
 
 @click.command(name="lr_grid_search")
 @click.option("--regions", required=True)
+@click.option("--chrom", type=str)
 @click.option("--epochs", type=int, default=5)
 @click.option("--plots_dir", default="plots")
 @click.option("--cache_dir", default="data/cache")
 def lr_grid_search(
     regions: str,
+    chrom: Optional[str],
     epochs: int,
     plots_dir: str,
     cache_dir: str,
 ):
+    if chrom:
+        chromosomes = {chrom}
+    else:
+        chromosomes = NORMAL_CHROMOSOMES
     region_slop = get_region_slop(regions)
-    dna_X, atac_X, Y = load_features_and_labels(regions, cache_dir)
-    dna_X, atac_X, Y = get_subset(dna_X, atac_X, Y, subset_size=10000)
+    dna_X, atac_X, Y = load_features_and_labels(regions, cache_dir, chromosomes)
     train_size = int(10000 * .8)
     train_dna_X, train_atac_X, train_Y = dna_X[:train_size], atac_X[:train_size], Y[:train_size]
     val_dna_X, val_atac_X, val_Y = dna_X[train_size:], atac_X[train_size:], Y[train_size:]

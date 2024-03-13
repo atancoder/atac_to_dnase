@@ -1,6 +1,7 @@
 import math
 import os
-from typing import Dict, List, Optional, Tuple, cast
+from tkinter import NORMAL
+from typing import Dict, List, Optional, Tuple, cast, Set
 
 import numpy as np
 import pandas as pd
@@ -89,9 +90,9 @@ def get_region_features(
 
 
 def load_features_and_labels(
-    regions_file: str, cache_dir: str
+    regions_file: str, cache_dir: str, chromosomes: Set[str]
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    result = _check_cache(regions_file, cache_dir)
+    result = _check_cache(regions_file, cache_dir, chromosomes)
     if result:
         return result
     print("dna_X, atac_X, Y not found in cache. Generating")
@@ -99,18 +100,31 @@ def load_features_and_labels(
     dna_X = []
     atac_X = []
     Y = []
-    for _, row in regions.iterrows():
+    for chrom in chromosomes:
+        chrom_dna_X, chrom_atac_X, chrom_Y = _get_chrom_feature_and_labels(chrom, regions)
+        _save_cache(chrom, chrom_dna_X, chrom_atac_X, chrom_Y, cache_dir)
+        dna_X.append(chrom_dna_X)
+        atac_X.append(chrom_atac_X)
+        Y.append(chrom_Y)
+
+    dna_X = torch.tensor(np.concatenate(dna_X), dtype=torch.int32)
+    atac_X = torch.tensor(np.concatenate(atac_X), dtype=torch.float32)
+    Y = torch.tensor(np.concatenate(Y), dtype=torch.float32)
+    return dna_X, atac_X, Y
+
+def _get_chrom_feature_and_labels(chrom, regions) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    dna_X = []
+    atac_X = []
+    Y = []
+    relevant_regions = regions[regions["chrom"] == chrom]
+    for _, row in relevant_regions.iterrows():
         seq = one_hot_encode_dna(row["SEQ"])
         atac_signal = np.array(ast.literal_eval(row["ATAC"]))
         dnase_signal = np.array(ast.literal_eval(row["DNASE"]))
         dna_X.append(seq)
         atac_X.append(atac_signal)
         Y.append(dnase_signal)
-    dna_X = torch.tensor(np.array(dna_X), dtype=torch.float32)
-    atac_X = torch.tensor(np.array(atac_X), dtype=torch.float32)
-    Y = torch.tensor(np.array(Y), dtype=torch.float32)
-    _save_cache(dna_X, atac_X, Y, cache_dir)
-    return dna_X, atac_X, Y
+    return np.array(dna_X), np.array(atac_X), np.array(Y)
 
 def create_features(
     regions: pd.DataFrame, atac_bw_file: str, fasta_file: str
@@ -130,38 +144,41 @@ def create_features(
                 seq = one_hot_encode_dna(seq)
                 dna_X.append(seq)
                 atac_X.append(atac_signal)
-    dna_X = torch.tensor(np.array(dna_X), dtype=torch.float32)
+    dna_X = torch.tensor(np.array(dna_X), dtype=torch.int32)
     atac_X = torch.tensor(np.array(atac_X), dtype=torch.float32)
     return dna_X, atac_X
 
-def _save_cache(dna_X: torch.Tensor, atac_X: torch.Tensor, Y: torch.Tensor, cache_dir: str) -> None:
-    cache_dna_file = os.path.join(cache_dir, CACHED_DNA_FILE)
-    cache_atac_file = os.path.join(cache_dir, CACHED_ATAC_FILE)
+def _save_cache(chrom: str, dna_X: np.ndarray, atac_X: np.ndarray, Y: np.ndarray, cache_dir: str) -> None:
+    cache_dna_file = os.path.join(cache_dir, f"{chrom}_{CACHED_DNA_FILE}")
+    cache_atac_file = os.path.join(cache_dir, f"{chrom}_{CACHED_ATAC_FILE}")
     cache_y_file = os.path.join(cache_dir, CACHED_Y_FILE)
-    torch.save(dna_X, cache_dna_file)
-    torch.save(atac_X, cache_atac_file)
-    torch.save(Y, cache_y_file)
-    print("Saved dna_X, atac_X, Y to cache")
+    torch.save(torch.tensor(dna_X, dtype=torch.int32), cache_dna_file)
+    torch.save(torch.tensor(atac_X, dtype=torch.float32), cache_atac_file)
+    torch.save(torch.tensor(Y, dtype=torch.float32), cache_y_file)
+    print(f"Saved {chrom}: dna_X, atac_X, Y to cache")
 
 
 def _check_cache(
-    regions_file: str, cache_dir: str
+    regions_file: str, cache_dir: str, chromosomes: Set[str]
 ) -> Optional[Tuple[torch.Tensor, torch.Tensor, torch.Tensor]]:
-    cache_dna_file = os.path.join(cache_dir, CACHED_DNA_FILE)
-    cache_atac_file = os.path.join(cache_dir, CACHED_ATAC_FILE)
-    cache_y_file = os.path.join(cache_dir, CACHED_Y_FILE)
-    if not os.path.exists(cache_dna_file) or not os.path.exists(cache_atac_file) or not os.path.exists(cache_y_file):
-        return None
-    
-    cache_mtime = min(os.path.getmtime(cache_dna_file), os.path.getmtime(cache_atac_file), os.path.getmtime(cache_y_file))
-    regions_mtime = os.path.getmtime(regions_file)
-    if regions_mtime > cache_mtime:
-        return None
-    print("Loading dna_X, atac_X, Y from cache")
-    dna_X = torch.load(cache_dna_file)
-    atac_X = torch.load(cache_atac_file)
-    Y = torch.load(cache_y_file)
-    return dna_X, atac_X, Y
+    dna_tensors = []
+    atac_tensors = []
+    labels = []
+    for chrom in chromosomes:
+        cache_dna_file = os.path.join(cache_dir, f"{chrom}_{CACHED_DNA_FILE}")
+        cache_atac_file = os.path.join(cache_dir, f"{chrom}_{CACHED_ATAC_FILE}")
+        cache_y_file = os.path.join(cache_dir, CACHED_Y_FILE)
+        if not os.path.exists(cache_dna_file) or not os.path.exists(cache_atac_file) or not os.path.exists(cache_y_file):
+            return None
+        cache_mtime = min(os.path.getmtime(cache_dna_file), os.path.getmtime(cache_atac_file), os.path.getmtime(cache_y_file))
+        regions_mtime = os.path.getmtime(regions_file)
+        if regions_mtime > cache_mtime:
+            return None
+        print("Loading dna_X, atac_X, Y from cache")
+        dna_tensors.append(torch.load(cache_dna_file))
+        atac_tensors.append(torch.load(cache_atac_file))
+        labels.append(torch.load(cache_y_file))
+    return torch.concat(dna_tensors), torch.concat(atac_tensors), torch.concat(labels)
 
 
 def get_coverage(

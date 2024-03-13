@@ -11,7 +11,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.figure import Figure
 
 from atac_to_dnase.data import get_coverage
-from atac_to_dnase.utils import BED3_COLS
+from atac_to_dnase.utils import BED3_COLS, estimate_bigwig_total_reads
 
 
 def get_crispr_positives(crispr_df: pd.DataFrame) -> pd.DataFrame:
@@ -130,8 +130,6 @@ def count_coverage_at_regions(
     regions_to_skip = set()
     with pyBigWig.open(atac_bw_file) as atac_bw:
         with pyBigWig.open(dnase_bw_file) as dnase_bw:
-            from atac_to_dnase.utils import estimate_bigwig_total_reads
-
             atac_total = estimate_bigwig_total_reads(atac_bw) 
             dnase_total = estimate_bigwig_total_reads(dnase_bw) 
 
