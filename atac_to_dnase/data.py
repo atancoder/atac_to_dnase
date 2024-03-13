@@ -68,7 +68,7 @@ def load_features_and_labels(
         if result:
             chrom_dna_X, chrom_atac_X, chrom_Y = [r.numpy() for r in result]
         else:
-            print("dna_X, atac_X, Y not found in cache. Generating")
+            print(f"{chrom} dna_X, atac_X, Y not found in cache. Generating")
             chrom_dna_X, chrom_atac_X, chrom_Y = _get_chrom_feature_and_labels(regions, chrom, atac_bw_file, dnase_bw_file, fasta_file)
             _save_cache(chrom, chrom_dna_X, chrom_atac_X, chrom_Y, cache_dir)
         dna_X.append(chrom_dna_X)
@@ -130,7 +130,7 @@ def create_features(
 def _save_cache(chrom: str, dna_X: np.ndarray, atac_X: np.ndarray, Y: np.ndarray, cache_dir: str) -> None:
     cache_dna_file = os.path.join(cache_dir, f"{chrom}_{CACHED_DNA_FILE}")
     cache_atac_file = os.path.join(cache_dir, f"{chrom}_{CACHED_ATAC_FILE}")
-    cache_y_file = os.path.join(cache_dir, CACHED_Y_FILE)
+    cache_y_file = os.path.join(cache_dir, f"{chrom}_{CACHED_Y_FILE}")
     torch.save(torch.tensor(dna_X, dtype=torch.int32), cache_dna_file)
     torch.save(torch.tensor(atac_X, dtype=torch.float32), cache_atac_file)
     torch.save(torch.tensor(Y, dtype=torch.float32), cache_y_file)
@@ -142,14 +142,14 @@ def _check_cache(
 ) -> Optional[Tuple[torch.Tensor, torch.Tensor, torch.Tensor]]:
     cache_dna_file = os.path.join(cache_dir, f"{chrom}_{CACHED_DNA_FILE}")
     cache_atac_file = os.path.join(cache_dir, f"{chrom}_{CACHED_ATAC_FILE}")
-    cache_y_file = os.path.join(cache_dir, CACHED_Y_FILE)
+    cache_y_file = os.path.join(cache_dir,f"{chrom}_{CACHED_Y_FILE}")
     if not os.path.exists(cache_dna_file) or not os.path.exists(cache_atac_file) or not os.path.exists(cache_y_file):
         return None
     cache_mtime = min(os.path.getmtime(cache_dna_file), os.path.getmtime(cache_atac_file), os.path.getmtime(cache_y_file))
     regions_mtime = os.path.getmtime(regions_file)
     if regions_mtime > cache_mtime:
         return None
-    print("Loading dna_X, atac_X, Y from cache")
+    print(f"Loading {chrom} dna_X, atac_X, Y from cache")
     dna_tensor = torch.load(cache_dna_file)
     atac_tensor = torch.load(cache_atac_file)
     label = torch.load(cache_y_file)
