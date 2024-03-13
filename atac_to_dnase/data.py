@@ -88,7 +88,7 @@ def _get_chrom_feature_and_labels(regions: pd.DataFrame, chrom: str, atac_bw_fil
     atac_bw = pyBigWig.open(atac_bw_file)
     atac_total = estimate_bigwig_total_reads(atac_bw)
     dnase_bw = pyBigWig.open(dnase_bw_file)
-    dnase_total = estimate_bigwig_total_reads(atac_bw)
+    dnase_total = estimate_bigwig_total_reads(dnase_bw)
 
     relevant_regions = regions[regions["chrom"] == chrom]
     for _, row in relevant_regions.iterrows():

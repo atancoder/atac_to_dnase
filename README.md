@@ -38,10 +38,15 @@ Regions must utilize the same region_size and region_slop that the model was tra
 TODO: Allow us to specify the regions we wish to predict in bed format; then the script verifies it matches what the model was trained on
 		and we can load the saved param we used for REGION slop based on the model
 ```
-py main.py predict --regions data/processed/regions.tsv --saved_model models/model.pt --atac_bw data/raw/atac_ENCFF512VEZ.bigWig --fasta data/reference/hg38.fa --output_folder results/
+py main.py predict --regions data/processed/regions.tsv --saved_model models/model.pt --atac_bw data/raw/ENCFF534DCE.bigWig --fasta data/reference/hg38.fa --output_folder results/
 ```
 
 Evaluation:
+Get ATAC/DNase signal at peaks
+```
+py scripts/gen_region_signal.py --regions data/processed/regions.tsv --atac_bw data/raw/ENCFF534DCE.bigWig --dnase_bw data/raw/ENCFF338LXW.bigWig --output_file data/processed/coverage_signal.tsv
+```
+
 Plot DNase vs ATAC signals
 ```
 py scripts/plot_atac_vs_dnase.py --abc_regions data/raw/ABC_peaks.bed --atac_bw data/raw/atac_ENCFF512VEZ.bigWig --dnase_bw data/raw/dnase_ENCFF860XAE.bigWig --crispr_file data/raw/EPCrisprBenchmark_ensemble_data_GRCh38.tsv --output_file results/plots.pdf
