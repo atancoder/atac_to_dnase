@@ -135,8 +135,8 @@ def count_coverage_at_regions(
 
             for idx, row in abc_regions_df.iterrows():
                 chrom, start, end = row[BED3_COLS]
-                atac_signal = sum(get_coverage(chrom, start, end, atac_bw))
-                dnase_signal = sum(get_coverage(chrom, start, end, dnase_bw))
+                atac_signal = get_coverage(chrom, start, end, atac_bw).sum()
+                dnase_signal = get_coverage(chrom, start, end, dnase_bw).sum()
                 if atac_signal == 0 or dnase_signal == 0:
                     regions_to_skip.add(idx)
                     continue

@@ -1,6 +1,6 @@
 import os
 from typing import Optional
-
+import time
 import click
 import pandas as pd
 import torch
@@ -8,7 +8,6 @@ from torch.utils.data import DataLoader, TensorDataset
 from typing import Tuple
 
 from atac_to_dnase.data import (
-    get_region_features,
     load_features_and_labels,
     split_into_fixed_region_sizes,
     create_features,
@@ -60,22 +59,15 @@ def get_model(region_width: int, region_slop: int, saved_model_file: Optional[st
 @click.option("--abc_regions", required=True)
 @click.option("--region_size", type=int, required=True)
 @click.option("--region_slop", type=int, required=True)
-@click.option("--atac_bw", required=True)
-@click.option("--dnase_bw", required=True)
-@click.option("--fasta", "fasta_file", type=str, required=True)
 @click.option("--output_file", required=True)
 def gen_regions(
     abc_regions: str,
     region_size: int,
     region_slop: int,
-    atac_bw,
-    dnase_bw,
-    fasta_file: str,
     output_file: str,
 ):
     abc_regions_df = pd.read_csv(abc_regions, sep="\t", names=BED3_COLS)
     regions = split_into_fixed_region_sizes(abc_regions_df, region_size, region_slop)
-    regions = get_region_features(regions, atac_bw, dnase_bw, fasta_file)
     regions.to_csv(output_file, sep="\t", index=False)
 
 
@@ -86,26 +78,32 @@ def get_subset(dna_X, atac_X, Y, subset_size: int = 10000) -> Tuple[torch.Tensor
 
 @click.command
 @click.option("--regions", required=True)
+@click.option("--atac_bw", type=str, required=True)
+@click.option("--dnase_bw", type=str, required=True)
+@click.option("--fasta", "fasta_file", type=str, required=True)
 @click.option("--chrom", type=str)
 @click.option("--epochs", type=int, default=100)
 @click.option("--saved_model", "saved_model_file")
-@click.option("--loss_plot", default=None)
+@click.option("--loss_plot")
 @click.option("--cache_dir", default="data/cache")
 def train(
     regions: str,
+    atac_bw: str,
+    dnase_bw: str,
+    fasta_file: str,
     chrom: Optional[str],
     epochs: int,
-    saved_model_file: str,
+    saved_model_file: Optional[str],
     loss_plot: Optional[str],
     cache_dir: str,
 ):
     if chrom:
-        chromosomes = {chrom}
+        chromosomes = set(chrom.split(","))
     else:
         chromosomes = NORMAL_CHROMOSOMES
 
     region_slop = get_region_slop(regions)
-    dna_X, atac_X, Y = load_features_and_labels(regions, cache_dir, chromosomes)
+    dna_X, atac_X, Y = load_features_and_labels(regions, atac_bw, dnase_bw, fasta_file, cache_dir, chromosomes)
     dataloader = DataLoader(TensorDataset(dna_X, atac_X, Y), BATCH_SIZE, shuffle=True)
     region_width = dna_X.shape[1]
     
@@ -143,12 +141,18 @@ def predict(
 
 @click.command(name="lr_grid_search")
 @click.option("--regions", required=True)
+@click.option("--atac_bw", type=str, required=True)
+@click.option("--dnase_bw", type=str, required=True)
+@click.option("--fasta", "fasta_file", type=str, required=True)
 @click.option("--chrom", type=str)
 @click.option("--epochs", type=int, default=5)
 @click.option("--plots_dir", default="plots")
 @click.option("--cache_dir", default="data/cache")
 def lr_grid_search(
     regions: str,
+    atac_bw: str,
+    dnase_bw: str,
+    fasta_file: str,
     chrom: Optional[str],
     epochs: int,
     plots_dir: str,
@@ -159,7 +163,7 @@ def lr_grid_search(
     else:
         chromosomes = NORMAL_CHROMOSOMES
     region_slop = get_region_slop(regions)
-    dna_X, atac_X, Y = load_features_and_labels(regions, cache_dir, chromosomes)
+    dna_X, atac_X, Y = load_features_and_labels(regions, atac_bw, dnase_bw, fasta_file, cache_dir, chromosomes)
     train_size = int(10000 * .8)
     train_dna_X, train_atac_X, train_Y = dna_X[:train_size], atac_X[:train_size], Y[:train_size]
     val_dna_X, val_atac_X, val_Y = dna_X[train_size:], atac_X[train_size:], Y[train_size:]

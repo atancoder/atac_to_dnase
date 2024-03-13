@@ -1,20 +1,18 @@
 import math
 import os
 from tkinter import NORMAL
-from typing import Dict, List, Optional, Tuple, cast, Set
+from typing import Dict, List, Optional, Tuple, Set
 
 import numpy as np
 import pandas as pd
 import pyBigWig
 import pysam
 import torch
-import ast
-from sympy import sequence
-
 from .utils import (
     BED3_COLS,
     NORMAL_CHROMOSOMES,
     one_hot_encode_dna,
+    estimate_bigwig_total_reads
 )
 
 CACHED_DNA_FILE = "dna_features.pt"
@@ -58,51 +56,21 @@ def split_into_fixed_region_sizes(
     return fixed_regions
 
 
-def get_region_features(
-    regions_df: pd.DataFrame, atac_bw_file: str, dnase_bw_file: str, fasta_file: str
-) -> pd.DataFrame:
-    regions_skipped = set()
-    fasta = pysam.FastaFile(fasta_file)
-    atac_bw = pyBigWig.open(atac_bw_file)
-    dnase_bw = pyBigWig.open(dnase_bw_file)
-    regions_df["ATAC"], regions_df["DNASE"] = None, None
-    for idx, row in regions_df.iterrows():
-        idx = cast(int, idx)
-        chrom, start, end = row[BED3_COLS]
-        atac_signal = get_coverage(chrom, start, end, atac_bw)
-        dnase_signal = get_coverage(chrom, start, end, dnase_bw)
-        sequence = _get_sequence(chrom, start, end, fasta)
-        if sum(atac_signal) == 0 or sum(dnase_signal) == 0 or not sequence:
-            regions_skipped.add(idx)
-            continue
-        regions_df.at[idx, "ATAC"] = atac_signal
-        regions_df.at[idx, "DNASE"] = dnase_signal
-        regions_df.at[idx, "SEQ"] = sequence
-
-    fasta.close()
-    atac_bw.close()
-    dnase_bw.close()
-    print(
-        f"Skipping {len(regions_skipped)} regions due to lack of coverage or sequence"
-    )
-    filtered_regions = regions_df[~regions_df.index.isin(regions_skipped)]
-    return filtered_regions
-
-
 def load_features_and_labels(
-    regions_file: str, cache_dir: str, chromosomes: Set[str]
+    regions_file: str, atac_bw_file: str, dnase_bw_file: str, fasta_file: str, cache_dir: str, chromosomes: Set[str]
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    result = _check_cache(regions_file, cache_dir, chromosomes)
-    if result:
-        return result
     print("dna_X, atac_X, Y not found in cache. Generating")
     regions = pd.read_csv(regions_file, sep="\t")
     dna_X = []
     atac_X = []
     Y = []
     for chrom in chromosomes:
-        chrom_dna_X, chrom_atac_X, chrom_Y = _get_chrom_feature_and_labels(chrom, regions)
-        _save_cache(chrom, chrom_dna_X, chrom_atac_X, chrom_Y, cache_dir)
+        result = _check_cache(regions_file, cache_dir, chrom)
+        if result:
+            chrom_dna_X, chrom_atac_X, chrom_Y = [r.numpy() for r in result]
+        else:
+            chrom_dna_X, chrom_atac_X, chrom_Y = _get_chrom_feature_and_labels(regions, chrom, atac_bw_file, dnase_bw_file, fasta_file)
+            _save_cache(chrom, chrom_dna_X, chrom_atac_X, chrom_Y, cache_dir)
         dna_X.append(chrom_dna_X)
         atac_X.append(chrom_atac_X)
         Y.append(chrom_Y)
@@ -112,18 +80,28 @@ def load_features_and_labels(
     Y = torch.tensor(np.concatenate(Y), dtype=torch.float32)
     return dna_X, atac_X, Y
 
-def _get_chrom_feature_and_labels(chrom, regions) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+def _get_chrom_feature_and_labels(regions: pd.DataFrame, chrom: str, atac_bw_file: str, dnase_bw_file: str, fasta_file: str) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     dna_X = []
     atac_X = []
     Y = []
+    fasta = pysam.FastaFile(fasta_file)
+    atac_bw = pyBigWig.open(atac_bw_file)
+    atac_total = estimate_bigwig_total_reads(atac_bw)
+    dnase_bw = pyBigWig.open(dnase_bw_file)
+    dnase_total = estimate_bigwig_total_reads(atac_bw)
+
     relevant_regions = regions[regions["chrom"] == chrom]
     for _, row in relevant_regions.iterrows():
-        seq = one_hot_encode_dna(row["SEQ"])
-        atac_signal = np.array(ast.literal_eval(row["ATAC"]))
-        dnase_signal = np.array(ast.literal_eval(row["DNASE"]))
+        chrom, start, end = row[BED3_COLS]
+        seq = one_hot_encode_dna(_get_sequence(chrom, start, end, fasta))
+        atac_signal = get_coverage(chrom, start, end, atac_bw) * (1e6 / atac_total)
+        dnase_signal = get_coverage(chrom, start, end, dnase_bw) * (1e6 / dnase_total)
         dna_X.append(seq)
         atac_X.append(atac_signal)
         Y.append(dnase_signal)
+    fasta.close()
+    atac_bw.close()
+    dnase_bw.close()
     return np.array(dna_X), np.array(atac_X), np.array(Y)
 
 def create_features(
@@ -133,11 +111,12 @@ def create_features(
     atac_X = []
     fasta = pysam.FastaFile(fasta_file)
     atac_bw = pyBigWig.open(atac_bw_file)
+    atac_total = estimate_bigwig_total_reads(atac_bw)
     with pysam.FastaFile(fasta_file) as fasta:
         with pyBigWig.open(atac_bw_file) as atac_bw:
             for _, row in regions.iterrows():
                 chrom, start, end = row[BED3_COLS]
-                atac_signal = np.array(get_coverage(chrom, start, end, atac_bw))
+                atac_signal = get_coverage(chrom, start, end, atac_bw) * (1e6 / atac_total)
                 seq = _get_sequence(chrom, start, end, fasta)
                 if not seq:
                     raise Exception(f"No sequence found for {chrom}:{start}-{end}")
@@ -159,46 +138,43 @@ def _save_cache(chrom: str, dna_X: np.ndarray, atac_X: np.ndarray, Y: np.ndarray
 
 
 def _check_cache(
-    regions_file: str, cache_dir: str, chromosomes: Set[str]
+    regions_file: str, cache_dir: str, chrom: str
 ) -> Optional[Tuple[torch.Tensor, torch.Tensor, torch.Tensor]]:
-    dna_tensors = []
-    atac_tensors = []
-    labels = []
-    for chrom in chromosomes:
-        cache_dna_file = os.path.join(cache_dir, f"{chrom}_{CACHED_DNA_FILE}")
-        cache_atac_file = os.path.join(cache_dir, f"{chrom}_{CACHED_ATAC_FILE}")
-        cache_y_file = os.path.join(cache_dir, CACHED_Y_FILE)
-        if not os.path.exists(cache_dna_file) or not os.path.exists(cache_atac_file) or not os.path.exists(cache_y_file):
-            return None
-        cache_mtime = min(os.path.getmtime(cache_dna_file), os.path.getmtime(cache_atac_file), os.path.getmtime(cache_y_file))
-        regions_mtime = os.path.getmtime(regions_file)
-        if regions_mtime > cache_mtime:
-            return None
-        print("Loading dna_X, atac_X, Y from cache")
-        dna_tensors.append(torch.load(cache_dna_file))
-        atac_tensors.append(torch.load(cache_atac_file))
-        labels.append(torch.load(cache_y_file))
-    return torch.concat(dna_tensors), torch.concat(atac_tensors), torch.concat(labels)
+    cache_dna_file = os.path.join(cache_dir, f"{chrom}_{CACHED_DNA_FILE}")
+    cache_atac_file = os.path.join(cache_dir, f"{chrom}_{CACHED_ATAC_FILE}")
+    cache_y_file = os.path.join(cache_dir, CACHED_Y_FILE)
+    if not os.path.exists(cache_dna_file) or not os.path.exists(cache_atac_file) or not os.path.exists(cache_y_file):
+        return None
+    cache_mtime = min(os.path.getmtime(cache_dna_file), os.path.getmtime(cache_atac_file), os.path.getmtime(cache_y_file))
+    regions_mtime = os.path.getmtime(regions_file)
+    if regions_mtime > cache_mtime:
+        return None
+    print("Loading dna_X, atac_X, Y from cache")
+    dna_tensor = torch.load(cache_dna_file)
+    atac_tensor = torch.load(cache_atac_file)
+    label = torch.load(cache_y_file)
+    return dna_tensor, atac_tensor, label
 
 
 def get_coverage(
     chrom: str, start: int, end: int, bw: pyBigWig.pyBigWig
-) -> List[float]:
+) -> np.ndarray:
     try:
         coverage = bw.values(chrom, start, end + 1)
     except Exception as e:
         print(f"Error getting coverage at {chrom}: {start}-{end}")
-        return []
+        return np.array([])
     coverage: List[float] = [0 if math.isnan(x) else x for x in coverage]
-    return coverage
+    return np.array(coverage)
 
 
 def _get_sequence(
     chrom: str, start: int, end: int, fasta: pyBigWig.pyBigWig
-) -> Optional[str]:
+) -> str:
     seq = fasta.fetch(chrom, start, end + 1)
     if not isinstance(seq, str):  # nan val
-        return None
+        seq_length = end - start
+        return "N" * seq_length
     return seq
 
 
