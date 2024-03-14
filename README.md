@@ -40,12 +40,12 @@ py main.py lr_grid_search --chrom chr1 --regions data/processed/regions.tsv --at
 Train the model on a GPU
 - Train on a subset of chromosomes so that we can cross validate the model with other chromosomes later
 ```
-py main.py train --regions data/processed/regions.tsv --saved_model models/model.pt --chrom chr1 --epochs 1000 --atac_bw data/raw/ENCFF534DCE.bigWig --dnase_bw data/raw/ENCFF338LXW.bigWig --fasta data/reference/hg38.fa --loss_plot plots/rel_pos_simple_model.pdf
+py main.py train --regions data/processed/regions.tsv --saved_model models/model.pt --chrom chr1 --epochs 200 --atac_bw data/raw/ENCFF534DCE.bigWig --dnase_bw data/raw/ENCFF338LXW.bigWig --fasta data/reference/hg38.fa --loss_plot plots/rel_pos_complex_model.pdf
 ```
 
 Validate the Model
 ```
-py main.py validate --regions data/processed/regions.tsv --saved_model models/model.pt --chrom chr2 --atac_bw data/raw/ENCFF534DCE.bigWig --dnase_bw data/raw/ENCFF338LXW.bigWig --fasta data/reference/hg38.fa
+py main.py validate --regions data/processed/regions.tsv --saved_model models/model.pt --chrom chr2,chr3,chr4,chr5 --atac_bw data/raw/ENCFF534DCE.bigWig --dnase_bw data/raw/ENCFF338LXW.bigWig --fasta data/reference/hg38.fa
 ```
 
 ### 3) Make predictions

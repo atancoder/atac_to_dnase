@@ -3,10 +3,10 @@ import torch
 from .utils import ONE_HOT_ENCODING_SIZE
 from .attention_module import TransformerEncoderLayerWithRelativePosition
 
-NUM_HEADS = 4
-NUM_BLOCKS = 4
+NUM_HEADS = 8
+NUM_BLOCKS = 8
 CONV_FILTER_SIZE = 21  # Needs to be odd
-CHANNELS = 64
+CHANNELS = 128
 
 class Residual(nn.Module):
     def __init__(self, module: nn.Module) -> None:
