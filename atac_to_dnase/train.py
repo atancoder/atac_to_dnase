@@ -106,5 +106,5 @@ def evaluate_model(model: nn.Module, dataloader: DataLoader, device: str, region
         for _, batch in enumerate(dataloader):
             loss = _get_loss_for_batch(model, batch, region_slop, device)
             total_loss += loss.item()
-    return total_loss
+    return total_loss / len(dataloader)
         

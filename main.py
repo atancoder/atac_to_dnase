@@ -131,6 +131,39 @@ def train(
     if loss_plot:
         plot_losses(losses, loss_plot)
 
+@click.command
+@click.option("--regions", required=True)
+@click.option("--atac_bw", type=str, required=True)
+@click.option("--dnase_bw", type=str, required=True)
+@click.option("--fasta", "fasta_file", type=str, required=True)
+@click.option("--chrom", type=str)
+@click.option("--saved_model", "saved_model_file")
+@click.option("--cache_dir", default="data/cache")
+def validate(
+    regions: str,
+    atac_bw: str,
+    dnase_bw: str,
+    fasta_file: str,
+    chrom: Optional[str],
+    saved_model_file: Optional[str],
+    cache_dir: str,
+):
+    if chrom:
+        chromosomes = set(chrom.split(","))
+    else:
+        chromosomes = NORMAL_CHROMOSOMES
+
+    region_slop = get_region_slop(regions)
+    dna_X, atac_X, Y = load_features_and_labels(
+        regions, atac_bw, dnase_bw, fasta_file, cache_dir, chromosomes
+    )
+    dataloader = DataLoader(TensorDataset(dna_X, atac_X, Y), BATCH_SIZE, shuffle=True)
+    region_width = dna_X.shape[1]
+
+    model, _ = get_model(region_width, region_slop, saved_model_file)
+    avg_batch_loss = evaluate_model(model, dataloader, DEVICE, region_slop)
+    print(f"Avg batch loss: {avg_batch_loss}")
+
 
 @click.command
 @click.option("--regions", required=True)
@@ -239,6 +272,7 @@ def lr_grid_search(
 
 cli.add_command(gen_regions)
 cli.add_command(train)
+cli.add_command(validate)
 cli.add_command(predict)
 cli.add_command(lr_grid_search)
 

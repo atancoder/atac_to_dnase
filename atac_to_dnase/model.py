@@ -59,11 +59,8 @@ class ATACTransformer(nn.Module):
             embedding_conv_layer, residual_conv_layer
         )  # We only need 1 conv layer as attention would handle neighbor interactions
 
-        # Absolute encodings for now
-        self.pos_encoder = nn.Parameter(torch.zeros(1, new_width, CHANNELS))  # type: ignore
+        self.transformer_layers = nn.ModuleList([TransformerEncoderLayerWithRelativePosition(CHANNELS, NUM_HEADS, new_width) for _ in range(NUM_BLOCKS)])
 
-        encoder_layer = nn.TransformerEncoderLayer(d_model=CHANNELS, nhead=NUM_HEADS, dim_feedforward=new_width*4, batch_first=True)
-        self.transformer_encoder = nn.TransformerEncoder(encoder_layer, num_layers=NUM_BLOCKS)
         self.crop = CenterRegion(region_width, region_slop)
         self.decoder = nn.Sequential(
             nn.Linear(CHANNELS, 1),
@@ -85,8 +82,10 @@ class ATACTransformer(nn.Module):
         embedding = self.conv_layers(encoding)
         embedding = embedding.permute(0, 2, 1)
 
-        embedding = embedding + self.pos_encoder
-        hidden_states = self.transformer_encoder(embedding)
+        hidden_states = embedding
+        for layer in self.transformer_layers:
+            hidden_states = layer(hidden_states)
+        
         hidden_states = self.crop(hidden_states)
         dnase_signal = self.decoder(hidden_states)
         return dnase_signal
