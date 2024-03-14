@@ -1,22 +1,27 @@
 import os
-from typing import Optional
 import time
+from typing import Optional, Tuple
+
 import click
 import pandas as pd
 import torch
 from torch.utils.data import DataLoader, TensorDataset
-from typing import Tuple
 
 from atac_to_dnase.data import (
+    create_features,
     load_features_and_labels,
     split_into_fixed_region_sizes,
-    create_features,
 )
 from atac_to_dnase.generate_bigwig import generate
 from atac_to_dnase.model import ATACTransformer
 from atac_to_dnase.plots import plot_losses
-from atac_to_dnase.train import train_model, evaluate_model
-from atac_to_dnase.utils import BED3_COLS, NORMAL_CHROMOSOMES, get_chrom_sizes, get_region_slop
+from atac_to_dnase.train import evaluate_model, train_model
+from atac_to_dnase.utils import (
+    BED3_COLS,
+    NORMAL_CHROMOSOMES,
+    get_chrom_sizes,
+    get_region_slop,
+)
 
 torch.manual_seed(1337)
 
@@ -41,18 +46,19 @@ def cli():
     pass
 
 
-def get_model(region_width: int, region_slop: int, saved_model_file: Optional[str]) -> ATACTransformer:
-    model = ATACTransformer(
-        region_width=region_width,
-        region_slop=region_slop
-    )
+def get_model(
+    region_width: int, region_slop: int, saved_model_file: Optional[str]
+) -> Tuple[ATACTransformer, bool]:
+    saved_model = False
+    model = ATACTransformer(region_width=region_width, region_slop=region_slop)
     if saved_model_file and os.path.exists(saved_model_file):
         print(f"Loading existing model: {saved_model_file}")
         model.load_state_dict(
             torch.load(saved_model_file, map_location=torch.device(DEVICE))
         )
+        saved_model = True
     model.to(DEVICE)
-    return model
+    return model, saved_model
 
 
 @click.command(name="gen_regions")
@@ -71,7 +77,9 @@ def gen_regions(
     regions.to_csv(output_file, sep="\t", index=False)
 
 
-def get_subset(dna_X, atac_X, Y, subset_size: int = 10000) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+def get_subset(
+    dna_X, atac_X, Y, subset_size: int = 10000
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     indices = torch.randperm(len(dna_X))[:subset_size]
     return dna_X[indices], atac_X[indices], Y[indices]
 
@@ -103,13 +111,22 @@ def train(
         chromosomes = NORMAL_CHROMOSOMES
 
     region_slop = get_region_slop(regions)
-    dna_X, atac_X, Y = load_features_and_labels(regions, atac_bw, dnase_bw, fasta_file, cache_dir, chromosomes)
+    dna_X, atac_X, Y = load_features_and_labels(
+        regions, atac_bw, dnase_bw, fasta_file, cache_dir, chromosomes
+    )
     dataloader = DataLoader(TensorDataset(dna_X, atac_X, Y), BATCH_SIZE, shuffle=True)
     region_width = dna_X.shape[1]
-    
-    model = get_model(region_width, region_slop, saved_model_file)
+
+    model, is_saved_model = get_model(region_width, region_slop, saved_model_file)
     losses = train_model(
-        model, dataloader, LEARNING_RATE, DEVICE, saved_model_file, region_slop=region_slop, epochs=epochs, warm_up=True
+        model,
+        dataloader,
+        LEARNING_RATE,
+        DEVICE,
+        saved_model_file,
+        region_slop=region_slop,
+        epochs=epochs,
+        warm_up=False if is_saved_model else True,
     )
     if loss_plot:
         plot_losses(losses, loss_plot)
@@ -128,16 +145,26 @@ def predict(
     saved_model_file: str,
     output_folder: str,
 ):
-    regions_df = pd.read_csv(regions, sep="\t", nrows=10)  # 10 for testing purposes
+    regions_df = pd.read_csv(
+        regions, sep="\t"
+    ) 
     region_slop = get_region_slop(regions)
     chrom_sizes = get_chrom_sizes(atac_bw)
     dna_X, atac_X = create_features(regions_df, atac_bw, fasta_file)
     region_width = dna_X.shape[1]
-    model = get_model(region_width, region_slop, saved_model_file)
+    model, _ = get_model(region_width, region_slop, saved_model_file)
     chrom_sizes = get_chrom_sizes(atac_bw)
     generate(
-        regions_df, model, dna_X, atac_X, chrom_sizes, output_folder, region_slop, DEVICE
+        regions_df,
+        model,
+        dna_X,
+        atac_X,
+        chrom_sizes,
+        output_folder,
+        region_slop,
+        DEVICE,
     )
+
 
 @click.command(name="lr_grid_search")
 @click.option("--regions", required=True)
@@ -163,21 +190,42 @@ def lr_grid_search(
     else:
         chromosomes = NORMAL_CHROMOSOMES
     region_slop = get_region_slop(regions)
-    dna_X, atac_X, Y = load_features_and_labels(regions, atac_bw, dnase_bw, fasta_file, cache_dir, chromosomes)
-    train_size = int(10000 * .8)
-    train_dna_X, train_atac_X, train_Y = dna_X[:train_size], atac_X[:train_size], Y[:train_size]
-    val_dna_X, val_atac_X, val_Y = dna_X[train_size:], atac_X[train_size:], Y[train_size:]
-    train_dataloader = DataLoader(TensorDataset(train_dna_X, train_atac_X, train_Y), BATCH_SIZE, shuffle=False)
-    val_dataloader = DataLoader(TensorDataset(val_dna_X, val_atac_X, val_Y), BATCH_SIZE, shuffle=False)
+    dna_X, atac_X, Y = load_features_and_labels(
+        regions, atac_bw, dnase_bw, fasta_file, cache_dir, chromosomes
+    )
+    train_size = int(10000 * 0.8)
+    train_dna_X, train_atac_X, train_Y = (
+        dna_X[:train_size],
+        atac_X[:train_size],
+        Y[:train_size],
+    )
+    val_dna_X, val_atac_X, val_Y = (
+        dna_X[train_size:],
+        atac_X[train_size:],
+        Y[train_size:],
+    )
+    train_dataloader = DataLoader(
+        TensorDataset(train_dna_X, train_atac_X, train_Y), BATCH_SIZE, shuffle=False
+    )
+    val_dataloader = DataLoader(
+        TensorDataset(val_dna_X, val_atac_X, val_Y), BATCH_SIZE, shuffle=False
+    )
 
     region_width = dna_X.shape[1]
     best_lr = None
-    lowest_val_loss = float('inf')
+    lowest_val_loss = float("inf")
     for lr in LEARNING_RATE_SEARCH:
-        model = get_model(region_width, region_slop, None)
+        model, _ = get_model(region_width, region_slop, None)
         print(f"Training model with LR: {lr}")
         losses = train_model(
-            model, train_dataloader, LEARNING_RATE, DEVICE, saved_model_file=None, region_slop=region_slop, epochs=epochs, warm_up=False
+            model,
+            train_dataloader,
+            LEARNING_RATE,
+            DEVICE,
+            saved_model_file=None,
+            region_slop=region_slop,
+            epochs=epochs,
+            warm_up=False,
         )
         plot_losses(losses, output_file=os.path.join(plots_dir, f"lr_{lr}_plot.pdf"))
         print("Evaluating model")
@@ -187,6 +235,7 @@ def lr_grid_search(
             best_lr = lr
             lowest_val_loss = val_loss
     print(f"Best Learning Rate: {best_lr} with Validation Loss: {lowest_val_loss}")
+
 
 cli.add_command(gen_regions)
 cli.add_command(train)

@@ -6,7 +6,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 from typing import List, Optional
 
-criterion = nn.MSELoss(reduction='mean')
+criterion = nn.MSELoss()
 LOG_INTERVAL = 100
 EPOCH_STOP_THRESHOLD = 25
 

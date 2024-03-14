@@ -3,10 +3,10 @@ import torch
 from .utils import ONE_HOT_ENCODING_SIZE
 from .attention_module import TransformerEncoderLayerWithRelativePosition
 
-NUM_HEADS = 8
-NUM_BLOCKS = 8
+NUM_HEADS = 4
+NUM_BLOCKS = 4
 CONV_FILTER_SIZE = 21  # Needs to be odd
-CHANNELS = 128
+CHANNELS = 64
 
 class Residual(nn.Module):
     def __init__(self, module: nn.Module) -> None:
@@ -59,8 +59,11 @@ class ATACTransformer(nn.Module):
             embedding_conv_layer, residual_conv_layer
         )  # We only need 1 conv layer as attention would handle neighbor interactions
 
-        self.transformer_layers = nn.ModuleList([TransformerEncoderLayerWithRelativePosition(CHANNELS, NUM_HEADS, new_width) for _ in range(NUM_BLOCKS)])
+        # Absolute encodings for now
+        self.pos_encoder = nn.Parameter(torch.zeros(1, new_width, CHANNELS))  # type: ignore
 
+        encoder_layer = nn.TransformerEncoderLayer(d_model=CHANNELS, nhead=NUM_HEADS, dim_feedforward=new_width*4, batch_first=True)
+        self.transformer_encoder = nn.TransformerEncoder(encoder_layer, num_layers=NUM_BLOCKS)
         self.crop = CenterRegion(region_width, region_slop)
         self.decoder = nn.Sequential(
             nn.Linear(CHANNELS, 1),
@@ -82,10 +85,8 @@ class ATACTransformer(nn.Module):
         embedding = self.conv_layers(encoding)
         embedding = embedding.permute(0, 2, 1)
 
-        hidden_states = embedding
-        for layer in self.transformer_layers:
-            hidden_states = layer(hidden_states)
-        
+        embedding = embedding + self.pos_encoder
+        hidden_states = self.transformer_encoder(embedding)
         hidden_states = self.crop(hidden_states)
         dnase_signal = self.decoder(hidden_states)
         return dnase_signal
