@@ -14,7 +14,7 @@ Requirements
 - fasta file 
 - ABC candidate regions bed file (remove chrM)
 
-##Generate training regions
+## Generate training regions
 
 Splits ABC regions into 500bp regions and extends each side by 125bp 
 Adds ATAC signal, DNase signal, and DNA sequence to each region
@@ -25,7 +25,7 @@ Adds ATAC signal, DNase signal, and DNA sequence to each region
 py main.py gen_regions --abc_regions data/raw/ABC_peaks.bed --region_size 500 --region_slop 125 --output_file data/processed/regions.tsv
 ```
 
-##Train the model
+## Train the model
 
 Find optimal learning rate
 ```
