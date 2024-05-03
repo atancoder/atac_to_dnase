@@ -15,6 +15,7 @@ Requirements
 - ABC candidate regions bed file (remove chrM)
 
 ##Generate training regions
+
 Splits ABC regions into 500bp regions and extends each side by 125bp 
 Adds ATAC signal, DNase signal, and DNA sequence to each region
 	- filter out regions that don't have both dnase and atac signal
@@ -25,6 +26,7 @@ py main.py gen_regions --abc_regions data/raw/ABC_peaks.bed --region_size 500 --
 ```
 
 ##Train the model
+
 Find optimal learning rate
 ```
 py main.py lr_grid_search --chrom chr1 --regions data/processed/regions.tsv --atac_bw data/raw/ENCFF534DCE.bigWig --dnase_bw data/raw/ENCFF338LXW.bigWig --fasta data/reference/hg38.fa
@@ -34,6 +36,7 @@ py main.py train --regions data/processed/regions.tsv --saved_model models/model
 ```
 
 ## Validate the Model
+
 ```
 py main.py validate --regions data/processed/regions.tsv --saved_model models/model.pt --chrom chr2 --atac_bw data/raw/ENCFF534DCE.bigWig --dnase_bw data/raw/ENCFF338LXW.bigWig --fasta data/reference/hg38.fa
 ```
