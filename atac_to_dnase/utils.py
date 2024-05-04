@@ -1,16 +1,18 @@
 from typing import Dict, List, Union
 
 import numpy as np
-import pyBigWig
 import pandas as pd
+import pyBigWig
 
 BED3_COLS = ["chrom", "start", "end"]
 NORMAL_CHROMOSOMES = set(["chr" + str(x) for x in range(1, 23)] + ["chrX"] + ["chrY"])
 ONE_HOT_ENCODING_SIZE = 4
 
+
 def get_region_slop(region_tsv: str) -> int:
-    df = pd.read_csv(region_tsv, sep='\t', nrows=1)
+    df = pd.read_csv(region_tsv, sep="\t", nrows=1)
     return df.iloc[0]["region_slop"]
+
 
 def dna_vocab_lookup(sequence: str) -> np.ndarray:
     mapping = {"A": 1, "C": 2, "G": 3, "T": 4}
