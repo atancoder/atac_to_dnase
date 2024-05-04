@@ -1,6 +1,7 @@
 # atac_to_dnase
 
 Model to convert ATAC signal to DNase signal
+- Model consists of a convolutional layers with a transformer architecture and uses relative positional encodings
 
 Convert DNase/ATAC signal to bigwig files
 
