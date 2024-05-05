@@ -17,41 +17,40 @@ Installation
 File Requirements
 - [ATAC](https://www.encodeproject.org/files/ENCFF093IIW/) + [DNase](https://www.encodeproject.org/files/ENCFF338LXW/) BigWig files
 - [fasta file](https://www.encodeproject.org/files/GRCh38_no_alt_analysis_set_GCA_000001405.15/)
-- [ABC](https://github.com/broadinstitute/ABC-Enhancer-Gene-Prediction) candidate regions bed file (remove chrM)
 
 ### 1) Generate training regions
 
-Splits ABC regions into 500bp regions and extends each side by 125bp 
+Splits [ABC](https://github.com/broadinstitute/ABC-Enhancer-Gene-Prediction) regions into 500bp regions and extends each side by 125bp 
 Adds ATAC signal, DNase signal, and DNA sequence to each region
 	- filter out regions that don't have both dnase and atac signal
 	- filter out regions in unmappable regions (no sequence)
 	
 ```
-py main.py gen_regions --abc_regions data/raw/ABC_peaks.bed --region_size 500 --region_slop 125 --output_file data/processed/regions.tsv
+py main.py gen_regions --abc_regions reference/ABC_peaks.bed --region_size 500 --region_slop 125 --output_file data/processed/regions.tsv
 ```
 
 ### 2) Train the model
 
 Find optimal learning rate
 ```
-py main.py lr_grid_search --chrom chr1 --regions data/processed/regions.tsv --atac_bw data/raw/ENCFF534DCE.bigWig --dnase_bw data/raw/ENCFF338LXW.bigWig --fasta data/reference/hg38.fa
+py main.py lr_grid_search --chrom chr1 --regions data/processed/regions.tsv --atac_bw data/raw/ENCFF534DCE.bigWig --dnase_bw data/raw/ENCFF338LXW.bigWig --fasta reference/hg38.fa
 ```
 
 Train the model on a GPU
 - Train on a subset of chromosomes so that we can cross validate the model with other chromosomes later
 ```
-py main.py train --regions data/processed/regions.tsv --saved_model models/model.pt --chrom chr1,chr6,chr7,chr8,chr9,chr10,chr11 --epochs 200 --atac_bw data/raw/ENCFF534DCE.bigWig --dnase_bw data/raw/ENCFF338LXW.bigWig --fasta data/reference/hg38.fa
+py main.py train --regions data/processed/regions.tsv --saved_model models/model.pt --chrom chr1,chr6,chr7,chr8,chr9,chr10,chr11 --epochs 200 --atac_bw data/raw/ENCFF534DCE.bigWig --dnase_bw data/raw/ENCFF338LXW.bigWig --fasta reference/hg38.fa
 ```
 
 Validate the Model
 ```
-py main.py validate --regions data/processed/regions.tsv --saved_model models/model.pt --chrom chr2,chr3,chr4,chr5 --atac_bw data/raw/ENCFF534DCE.bigWig --dnase_bw data/raw/ENCFF338LXW.bigWig --fasta data/reference/hg38.fa
+py main.py validate --regions data/processed/regions.tsv --saved_model models/model.pt --chrom chr2,chr3,chr4,chr5 --atac_bw data/raw/ENCFF534DCE.bigWig --dnase_bw data/raw/ENCFF338LXW.bigWig --fasta reference/hg38.fa
 ```
 
 ### 3) Make predictions
 Note: Regions must utilize the same region_size and region_slop that the model was trained on
 ```
-py main.py predict --regions data/processed/regions.tsv --saved_model models/model.pt --atac_bw data/raw/ENCFF534DCE.bigWig --fasta data/reference/hg38.fa --output_folder results/
+py main.py predict --regions data/processed/regions.tsv --saved_model models/model.pt --atac_bw data/raw/ENCFF534DCE.bigWig --fasta reference/hg38.fa --output_folder results/
 ```
 
 Output folder will have the predicted DNase signal in bigWig format.
@@ -59,7 +58,7 @@ Output folder will have the predicted DNase signal in bigWig format.
 ### 4) Visualizing the Predictions
 Plot DNase vs Predicted DNase signal differences
 ```
-py scripts/plot_atac_vs_dnase.py --abc_regions data/raw/ABC_peaks.bed --atac_bw data/raw/ENCFF534DCE.bigWig --dnase_bw data/raw/ENCFF338LXW.bigWig --crispr_file data/raw/EPCrisprBenchmark_ensemble_data_GRCh38.tsv.gz --output_file results/plots_orig_signals.pdf
+py scripts/plot_atac_vs_dnase.py --abc_regions reference/ABC_peaks.bed --atac_bw data/raw/ENCFF534DCE.bigWig --dnase_bw data/raw/ENCFF338LXW.bigWig --crispr_file data/raw/EPCrisprBenchmark_ensemble_data_GRCh38.tsv.gz --output_file results/plots_orig_signals.pdf
 ```
 
 See ATAC vs DNase signal differences in table format

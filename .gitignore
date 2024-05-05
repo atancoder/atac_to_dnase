@@ -6,6 +6,7 @@
 *.egg-info
 *mypy*
 *.log
+reference/hg38*
 data/
 results/
 models/
