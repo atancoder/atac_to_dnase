@@ -15,9 +15,9 @@ Installation
 - `pip install -e .`  # this is so files in scripts/ run correctly
 
 File Requirements
-- [ATAC]([url](https://www.encodeproject.org/files/ENCFF093IIW/)) + [DNase]([url](https://www.encodeproject.org/files/ENCFF338LXW/)) BigWig files
-- [fasta file]([url](https://www.encodeproject.org/files/GRCh38_no_alt_analysis_set_GCA_000001405.15/)) 
-- [ABC]([url](https://github.com/broadinstitute/ABC-Enhancer-Gene-Prediction)) candidate regions bed file (remove chrM)
+- [ATAC](https://www.encodeproject.org/files/ENCFF093IIW/) + [DNase](https://www.encodeproject.org/files/ENCFF338LXW/) BigWig files
+- [fasta file](https://www.encodeproject.org/files/GRCh38_no_alt_analysis_set_GCA_000001405.15/)
+- [ABC](https://github.com/broadinstitute/ABC-Enhancer-Gene-Prediction) candidate regions bed file (remove chrM)
 
 ### 1) Generate training regions
 
