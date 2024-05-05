@@ -70,13 +70,14 @@ Replace atac_bw with predicted bigWig for predicted differences.
 
 ### Results
 DNase vs ATAC difference: See `plots_orig_signals.pdf` 
+
 DNase vs Predicted DNase difference: See `plots_vs_predictions.pdf`
 
 If we look at the metric we care about the most, which is the signal in the CRISPR positives/negatives (look 
 at swarm plots), our predictions do a lot better at predicting DNase signal. However, it's still not great. 
-We'd want to see the difference between the 2 really get as close to 0 as possible. This might mean a more 
+We'd want to see the difference between the two really get as close to 0 as possible. This might mean a more 
 complicated model with more parameters, or utilizing more complex features (we know that ATAC signal can be 
-quite different than DNase due to nucleosomal fragments)
+quite different than DNase due to nucleosomal fragments, so adding a feature such as fragment length can help).
 
 Another thing to worry about is overfitting. We only used the K562 cell type, so the model has likely learned some
 cell type specific information, such as TF (transcription factor) presence. We'd need to train and test the model 
