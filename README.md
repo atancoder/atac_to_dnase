@@ -11,7 +11,7 @@ DNase signal track at base pair resolution.
 ## Usage
 Installation
 - clone repo
-- install conda environment (`mamba env create -f envs/env.yml`)
+- Install and activate conda environment (`mamba env create -f envs/env.yml && mamba activate atac_to_dnase`)
 - `pip install -e .`  # this is so files in scripts/ run correctly
 
 File Requirements
@@ -40,7 +40,7 @@ py main.py lr_grid_search --chrom chr1 --regions data/processed/regions.tsv --at
 Train the model on a GPU
 - Train on a subset of chromosomes so that we can cross validate the model with other chromosomes later
 ```
-py main.py train --regions data/processed/regions.tsv --saved_model models/model.pt --chrom chr1 --epochs 200 --atac_bw data/raw/ENCFF534DCE.bigWig --dnase_bw data/raw/ENCFF338LXW.bigWig --fasta data/reference/hg38.fa --loss_plot plots/rel_pos_complex_model.pdf
+py main.py train --regions data/processed/regions.tsv --saved_model models/model.pt --chrom chr1,chr6,chr7,chr8,chr9,chr10,chr11 --epochs 200 --atac_bw data/raw/ENCFF534DCE.bigWig --dnase_bw data/raw/ENCFF338LXW.bigWig --fasta data/reference/hg38.fa
 ```
 
 Validate the Model
@@ -57,18 +57,28 @@ py main.py predict --regions data/processed/regions.tsv --saved_model models/mod
 Output folder will have the predicted DNase signal in bigWig format.
 
 ### 4) Visualizing the Predictions
-Looking at loss metrics, such as MSE (mean squared error), may not be that informative. We need to compare the performance of the predicted track with the original track.
+Plot DNase vs Predicted DNase signal differences
+```
+py scripts/plot_atac_vs_dnase.py --abc_regions data/raw/ABC_peaks.bed --atac_bw data/raw/ENCFF534DCE.bigWig --dnase_bw data/raw/ENCFF338LXW.bigWig --crispr_file data/raw/EPCrisprBenchmark_ensemble_data_GRCh38.tsv.gz --output_file results/plots_orig_signals.pdf
+```
 
-Get ATAC and DNase signal at peaks
+See ATAC vs DNase signal differences in table format
 ```
 py scripts/gen_region_signal.py --regions data/processed/regions.tsv --atac_bw data/raw/ENCFF534DCE.bigWig --dnase_bw data/raw/ENCFF338LXW.bigWig --output_file data/processed/coverage_signal.tsv
 ```
-
-Plot DNase vs ATAC signals
-```
-py scripts/plot_atac_vs_dnase.py --abc_regions data/raw/ABC_peaks.bed --atac_bw data/raw/ENCFF534DCE.bigWig --dnase_bw data/raw/ENCFF338LXW.bigWig --crispr_file data/raw/EPCrisprBenchmark_ensemble_data_GRCh38.tsv.gz --output_file results/plots.pdf
-```
-
-Then replace the DNase signal with the predicted signal to see how the predictions fare.
+Replace atac_bw with predicted bigWig for predicted differences.
 
 ### Results
+DNase vs ATAC difference: See `plots_orig_signals.pdf` 
+DNase vs Predicted DNase difference: See `plots_vs_predictions.pdf`
+
+If we look at the metric we care about the most, which is the signal in the CRISPR positives/negatives (look 
+at swarm plots), our predictions do a lot better at predicting DNase signal. However, it's still not great. 
+We'd want to see the difference between the 2 really get as close to 0 as possible. This might mean a more 
+complicated model with more parameters, or utilizing more complex features (we know that ATAC signal can be 
+quite different than DNase due to nucleosomal fragments)
+
+Another thing to worry about is overfitting. We only used the K562 cell type, so the model has likely learned some
+cell type specific information, such as TF (transcription factor) presence. We'd need to train and test the model 
+using more cell types to address this. 
+

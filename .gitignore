@@ -7,6 +7,5 @@
 *mypy*
 *.log
 data/
-plots/
 results/
 models/
