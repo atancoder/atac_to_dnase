@@ -5,7 +5,8 @@ Sequence based model that converts ATAC signal to DNase signal.
 This is a transformer based model that encodes ATAC signal + DNA sequence and predicts the corresponding
 DNase signal track at base pair resolution.
 
-![image](https://github.com/atancoder/atac_to_dnase/assets/10254642/e0263c43-b5c9-48c4-8b18-b5b3a0c0b6b9)
+![image](https://github.com/user-attachments/assets/03b618d5-dfe0-408b-b251-61ad691bea40)
+
 
 
 ## Usage
